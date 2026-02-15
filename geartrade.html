@@ -1,0 +1,2054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GearTrade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --black:   #080808;
+  --surface: #111111;
+  --surface2:#1a1a1a;
+  --border:  rgba(255,255,255,0.07);
+  --red:     #e83040;
+  --green:   #1dbc6e;
+  --gold:    #c9a84c;
+  --white:   #f5f2ec;
+  --muted:   #666;
+  --radius:  20px;
+  --sans:    'DM Sans', system-ui, sans-serif;
+  --serif:   'DM Serif Display', Georgia, serif;
+}
+
+html, body { height: 100%; background: var(--black); }
+
+body {
+  font-family: var(--sans);
+  color: var(--white);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#app {
+  max-width: 430px;
+  margin: 0 auto;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: var(--black);
+}
+
+/* ─── GRAIN OVERLAY ─── */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  max-width: 430px;
+  margin: 0 auto;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── SCREENS ─── */
+.screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.screen.active { display: flex; }
+
+/* ─── TOPBAR ─── */
+.topbar {
+  padding: 18px 22px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.wordmark {
+  font-family: var(--serif);
+  font-size: 26px;
+  letter-spacing: -0.5px;
+  color: var(--white);
+}
+.wordmark span { color: var(--red); font-style: italic; }
+.topbar-right { display: flex; gap: 10px; align-items: center; }
+.icon-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--white);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.15s;
+  position: relative;
+}
+.icon-btn:active { background: var(--surface2); }
+.badge {
+  position: absolute;
+  top: -3px; right: -3px;
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--black);
+}
+
+/* ─── BOTTOM NAV ─── */
+.bottomnav {
+  display: flex;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(8,8,8,0.95);
+  backdrop-filter: blur(20px);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0 10px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--sans);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  transition: color 0.15s;
+  position: relative;
+}
+.nav-item svg { width: 22px; height: 22px; }
+.nav-item.active { color: var(--white); }
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 2px;
+  background: var(--red);
+  border-radius: 2px;
+}
+.nav-badge {
+  position: absolute;
+  top: 8px;
+  left: calc(50% + 6px);
+  background: var(--red);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── SCROLL AREA ─── */
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-area::-webkit-scrollbar { display: none; }
+
+/* ─── AUTH SCREEN ─── */
+#screen-auth {
+  padding: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.auth-hero {
+  padding: 64px 28px 40px;
+  text-align: center;
+}
+.auth-headline {
+  font-family: var(--serif);
+  font-size: 52px;
+  line-height: 1.0;
+  letter-spacing: -1px;
+  margin-bottom: 14px;
+}
+.auth-headline em { color: var(--red); font-style: italic; }
+.auth-sub {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+  max-width: 280px;
+  margin: 0 auto;
+}
+.auth-form {
+  padding: 0 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+input {
+  width: 100%;
+  padding: 15px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--white);
+  font-size: 16px;
+  font-family: var(--sans);
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+input:focus { border-color: rgba(255,255,255,0.25); }
+input::placeholder { color: var(--muted); }
+.btn {
+  padding: 17px;
+  border-radius: 14px;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+  letter-spacing: 0.01em;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--red); color: white; }
+.btn-ghost { background: var(--surface); color: var(--white); border: 1px solid var(--border); }
+.auth-toggle {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  padding-top: 4px;
+}
+.auth-toggle button {
+  background: none; border: none;
+  color: var(--white); font-weight: 600;
+  font-size: 14px; cursor: pointer;
+  font-family: var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.error-pill {
+  background: rgba(232,48,64,0.15);
+  border: 1px solid rgba(232,48,64,0.3);
+  color: #ff8090;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  display: none;
+}
+.error-pill.show { display: block; }
+.connecting-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  text-align: center;
+  margin: 0 24px;
+}
+.connecting-pill.demo { color: var(--gold); border-color: rgba(201,168,76,0.3); background: rgba(201,168,76,0.08); }
+
+/* ─── SWIPE SCREEN ─── */
+#screen-swipe {
+  position: relative;
+}
+.swipe-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px 0;
+  position: relative;
+  overflow: hidden;
+}
+.card-counter {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 10px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+.card-stack {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  /* Fill available height between counter and action buttons */
+  flex: 1;
+  min-height: 0;
+}
+.car-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  will-change: transform;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  cursor: grab;
+  background: var(--surface2);
+  z-index: 3;
+}
+.car-card:active { cursor: grabbing; }
+.car-card.is-second {
+  z-index: 2;
+  transform: scale(0.96) translateY(12px);
+  pointer-events: none;
+}
+.car-card.is-third {
+  z-index: 1;
+  transform: scale(0.92) translateY(24px);
+  pointer-events: none;
+}
+
+/* ── Full-bleed photo card ── */
+.card-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-emoji-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 96px;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+}
+.card-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0,0,0,0.85) 0%,
+    rgba(0,0,0,0.3) 40%,
+    transparent 70%
+  );
+}
+.card-overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 20px 20px 22px;
+  pointer-events: none;
+}
+.card-overlay-year { font-size: 13px; color: rgba(255,255,255,0.6); font-weight: 500; margin-bottom: 2px; }
+.card-overlay-name { font-family: var(--serif); font-size: 28px; line-height: 1.1; color: white; margin-bottom: 10px; }
+.card-overlay-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-overlay-price { font-size: 20px; font-weight: 800; color: white; }
+.card-overlay-loc { font-size: 13px; color: rgba(255,255,255,0.65); }
+.card-tap-hint {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+/* Vote labels */
+.vote-label {
+  position: absolute;
+  top: 28px;
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transition: opacity 0.1s;
+  pointer-events: none;
+  z-index: 10;
+}
+.vote-label.like { right: 20px; background: var(--green); color: white; transform: rotate(15deg); }
+.vote-label.nope { left: 20px; background: var(--red); color: white; transform: rotate(-15deg); }
+
+/* Photo dots */
+.photo-dots {
+  position: absolute;
+  top: 14px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+  pointer-events: none;
+}
+.photo-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.4);
+  transition: background 0.2s, transform 0.2s;
+}
+.photo-dot.active { background: white; transform: scale(1.3); }
+
+/* SWIPE ACTION BUTTONS */
+.swipe-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px 0 16px;
+  flex-shrink: 0;
+}
+.swipe-btn {
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s;
+  font-size: 22px;
+}
+.swipe-btn:active { transform: scale(0.9); }
+.btn-nope {
+  width: 58px; height: 58px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--red);
+  box-shadow: 0 4px 20px rgba(232,48,64,0.15);
+}
+.btn-like {
+  width: 72px; height: 72px;
+  background: var(--red);
+  color: white;
+  box-shadow: 0 8px 28px rgba(232,48,64,0.4);
+}
+.btn-info {
+  width: 46px; height: 46px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 16px;
+}
+.empty-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 32px;
+  text-align: center;
+  flex: 1;
+}
+.empty-deck .big-icon { font-size: 64px; opacity: 0.4; }
+.empty-deck h3 { font-family: var(--serif); font-size: 28px; }
+.empty-deck p { color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+/* ─── MATCHES SCREEN ─── */
+.matches-header {
+  padding: 20px 22px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.matches-header h2 { font-family: var(--serif); font-size: 32px; }
+.matches-header span { color: var(--muted); font-size: 14px; }
+.matches-list {
+  padding: 0 16px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.match-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.match-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--red);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.match-row.unread::before { opacity: 1; }
+.match-row:active { background: var(--surface2); }
+.match-avi {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.match-info { flex: 1; min-width: 0; }
+.match-name { font-weight: 600; font-size: 15px; margin-bottom: 3px; }
+.match-car { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.match-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.match-time { font-size: 11px; color: var(--muted); }
+.match-unread-dot {
+  width: 10px; height: 10px;
+  background: var(--red);
+  border-radius: 50%;
+}
+.no-matches {
+  text-align: center;
+  padding: 80px 32px;
+  color: var(--muted);
+}
+.no-matches .big-icon { font-size: 56px; margin-bottom: 16px; }
+.no-matches h3 { font-family: var(--serif); font-size: 24px; color: var(--white); margin-bottom: 8px; }
+
+/* ─── CHAT ─── */
+#screen-chat {
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#screen-chat.active { display: flex; }
+.chat-header {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.back-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--white);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.chat-peer-info { flex: 1; }
+.chat-peer-name { font-weight: 700; font-size: 16px; }
+.chat-peer-car { font-size: 12px; color: var(--muted); }
+.chat-trade-chip {
+  background: rgba(201,168,76,0.1);
+  border: 1px solid rgba(201,168,76,0.25);
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.messages-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.messages-scroll::-webkit-scrollbar { display: none; }
+.msg {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.msg.me {
+  align-self: flex-end;
+  background: var(--red);
+  color: white;
+  border-bottom-right-radius: 5px;
+}
+.msg.them {
+  align-self: flex-start;
+  background: var(--surface2);
+  color: var(--white);
+  border-bottom-left-radius: 5px;
+}
+.msg-time { font-size: 10px; opacity: 0.55; margin-top: 4px; }
+.chat-input-bar {
+  padding: 12px 14px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  background: var(--black);
+  flex-shrink: 0;
+}
+.chat-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 11px 18px;
+  font-size: 15px;
+  font-family: var(--sans);
+  color: var(--white);
+  outline: none;
+  resize: none;
+  -webkit-appearance: none;
+}
+.send-btn {
+  width: 42px; height: 42px;
+  background: var(--red);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 17px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+.send-btn:active { transform: scale(0.9); }
+
+/* ─── PROFILE SCREEN ─── */
+.profile-wrap { padding: 24px 20px 100px; }
+.profile-hero {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.profile-avi {
+  width: 96px; height: 96px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--red), #ff8855);
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 40px;
+  color: white;
+}
+.profile-username { font-family: var(--serif); font-size: 32px; margin-bottom: 4px; }
+.profile-loc { font-size: 14px; color: var(--muted); }
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 12px;
+  text-align: center;
+}
+.stat-num {
+  font-family: var(--serif);
+  font-size: 34px;
+  margin-bottom: 2px;
+  color: var(--white);
+}
+.stat-lbl { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.menu-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+.menu-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background 0.15s;
+  color: var(--white);
+}
+.menu-item:active { background: var(--surface2); }
+.menu-item .mi-icon { font-size: 18px; width: 24px; text-align: center; }
+.menu-item .mi-arrow { margin-left: auto; color: var(--muted); font-size: 13px; }
+.menu-item.danger { color: var(--red); }
+
+/* ─── MATCH TOAST ─── */
+.match-toast {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8,8,8,0.92);
+  backdrop-filter: blur(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.match-toast.show { opacity: 1; pointer-events: all; }
+.match-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 40px 32px;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+  transform: scale(0.85);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.match-toast.show .match-card { transform: scale(1); }
+.match-cars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 52px;
+  margin-bottom: 20px;
+}
+.match-vs {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+.match-headline {
+  font-family: var(--serif);
+  font-size: 38px;
+  margin-bottom: 8px;
+  line-height: 1.1;
+}
+.match-sub { color: var(--muted); font-size: 15px; margin-bottom: 28px; line-height: 1.5; }
+.match-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* ─── LOADING ─── */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: var(--white);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.3s ease forwards; }
+
+/* ─── DEMO MODE BANNER ─── */
+.demo-banner {
+  background: rgba(201,168,76,0.1);
+  border-bottom: 1px solid rgba(201,168,76,0.2);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 7px;
+  letter-spacing: 0.04em;
+  display: none;
+}
+.demo-banner.visible { display: block; }
+
+/* ─── DETAIL PAGE (full screen) ─── */
+#screen-detail {
+  position: fixed;
+  top: 0; bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  z-index: 9000;
+  background: var(--black);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#screen-detail.open { display: flex; }
+
+.detail-photos {
+  position: relative;
+  width: 100%;
+  height: 55vw;
+  max-height: 260px;
+  flex-shrink: 0;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.detail-photo-main {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.2s;
+}
+.detail-photo-emoji {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 80px;
+}
+.detail-back-btn {
+  position: absolute;
+  top: 14px; left: 14px;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: white;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.detail-photo-dots {
+  position: absolute;
+  bottom: 12px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 5px;
+}
+.detail-photo-strip {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  background: var(--black);
+}
+.detail-photo-strip::-webkit-scrollbar { display: none; }
+.detail-strip-thumb {
+  width: 60px; height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  opacity: 0.45;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.detail-strip-thumb.active { opacity: 1; border-color: var(--red); }
+.detail-strip-emoji {
+  width: 60px; height: 44px;
+  border-radius: 8px;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 20px 120px;
+}
+.detail-scroll::-webkit-scrollbar { display: none; }
+
+.detail-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.detail-year-make { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 3px; letter-spacing: 0.03em; }
+.detail-model { font-family: var(--serif); font-size: 34px; line-height: 1.05; letter-spacing: -0.5px; }
+.detail-price { font-size: 28px; font-weight: 800; margin-bottom: 14px; }
+
+.detail-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
+.detail-chip {
+  font-size: 12px; font-weight: 600;
+  padding: 6px 12px; border-radius: 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--white);
+}
+.detail-chip.green { background: rgba(29,188,110,0.1); color: #4dda92; border-color: rgba(29,188,110,0.2); }
+.detail-chip.gold  { background: rgba(201,168,76,0.1); color: var(--gold); border-color: rgba(201,168,76,0.25); }
+.detail-chip.red   { background: rgba(232,48,64,0.1); color: var(--red); border-color: rgba(232,48,64,0.2); }
+
+.detail-divider { height: 1px; background: var(--border); margin: 18px 0; }
+.detail-section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+
+.detail-owner-row { display: flex; align-items: center; gap: 12px; }
+.detail-owner-avi {
+  width: 46px; height: 46px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--red), #ff8855);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 20px; color: white; flex-shrink: 0;
+}
+.detail-owner-name { font-weight: 700; font-size: 15px; }
+.detail-owner-loc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+.detail-desc { font-size: 15px; line-height: 1.7; color: rgba(245,242,236,0.72); }
+
+.detail-specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.detail-spec {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.detail-spec-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 3px; }
+.detail-spec-val { font-size: 15px; font-weight: 700; }
+
+/* Sticky action bar */
+.detail-action-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 14px 16px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  display: flex; gap: 10px;
+  background: linear-gradient(to top, rgba(8,8,8,1) 0%, rgba(8,8,8,0.95) 100%);
+  border-top: 1px solid var(--border);
+}
+.detail-like-btn {
+  flex: 1; padding: 16px;
+  background: var(--red); border: none; border-radius: 14px;
+  color: white; font-size: 17px; font-weight: 700;
+  font-family: var(--sans); cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 6px 20px rgba(232,48,64,0.35);
+}
+.detail-like-btn:active { transform: scale(0.97); }
+.detail-nope-btn {
+  padding: 16px 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  color: var(--white); font-size: 17px;
+  font-family: var(--sans); cursor: pointer;
+  transition: transform 0.1s;
+}
+.detail-nope-btn:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Demo banner -->
+  <div class="demo-banner" id="demoBanner">⚡ DEMO MODE — start the backend to go live</div>
+
+  <!-- ═══ AUTH SCREEN ═══ -->
+  <div class="screen active" id="screen-auth" style="overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <div class="auth-hero">
+      <div class="auth-headline">Trade<br>your <em>ride.</em></div>
+      <p class="auth-sub">The smartest way to swap, sell, and score your dream car.</p>
+    </div>
+
+    <div class="error-pill" id="authError"></div>
+
+    <div class="auth-form" id="loginForm">
+      <div>
+        <div class="field-label">Username</div>
+        <input type="text" id="loginUsername" placeholder="your_username" autocomplete="username" autocapitalize="none">
+      </div>
+      <div>
+        <div class="field-label">Password</div>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" id="loginBtn">Sign In</button>
+      <div class="auth-toggle">New here? <button onclick="toggleAuth()">Create account</button></div>
+    </div>
+
+    <div class="auth-form" id="signupForm" style="display:none">
+      <div>
+        <div class="field-label">Username</div>
+        <input type="text" id="signupUsername" placeholder="choose_username" autocomplete="username" autocapitalize="none">
+      </div>
+      <div>
+        <div class="field-label">Email</div>
+        <input type="email" id="signupEmail" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div>
+        <div class="field-label">Password</div>
+        <input type="password" id="signupPassword" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary" id="signupBtn">Create Account</button>
+      <div class="auth-toggle">Already a member? <button onclick="toggleAuth()">Sign in</button></div>
+    </div>
+  </div>
+
+  <!-- ═══ SWIPE SCREEN ═══ -->
+  <div class="screen" id="screen-swipe">
+    <div class="topbar">
+      <div class="wordmark">Gear<span>Trade</span></div>
+      <div class="topbar-right">
+        <button class="icon-btn" onclick="showAddCar()" title="Add car">＋</button>
+      </div>
+    </div>
+    <div class="swipe-area">
+      <div class="card-counter" id="cardCounter"></div>
+      <div class="card-stack" id="cardStack">
+        <div class="empty-deck" id="emptyDeck" style="display:none">
+          <div class="big-icon">🏁</div>
+          <h3>All caught up</h3>
+          <p>No more cars to browse right now. Add your own car or check back later.</p>
+          <button class="btn btn-primary" style="margin-top:8px;width:auto;padding:14px 28px" onclick="refreshDeck()">Refresh</button>
+        </div>
+      </div>
+    </div>
+    <div class="swipe-actions" id="swipeActions">
+      <button class="swipe-btn btn-nope" onclick="doSwipe('nope')" title="Pass">✕</button>
+      <button class="swipe-btn btn-like" onclick="doSwipe('like')" title="Like">♥</button>
+    </div>
+  </div>
+
+  <!-- ═══ MATCHES SCREEN ═══ -->
+  <div class="screen" id="screen-matches">
+    <div class="topbar">
+      <div class="wordmark">Gear<span>Trade</span></div>
+      <span style="color:var(--muted);font-size:14px" id="matchCount"></span>
+    </div>
+    <div class="scroll-area">
+      <div class="matches-list" id="matchesList"></div>
+    </div>
+  </div>
+
+  <!-- ═══ CHAT SCREEN ═══ -->
+  <div class="screen" id="screen-chat">
+    <div class="chat-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <div class="chat-peer-info">
+        <div class="chat-peer-name" id="chatPeerName"></div>
+        <div class="chat-peer-car" id="chatPeerCar"></div>
+      </div>
+      <div class="chat-trade-chip" id="chatTradeChip">🤝 Trade Details</div>
+    </div>
+    <div class="messages-scroll" id="messagesScroll"></div>
+    <div class="chat-input-bar">
+      <input class="chat-input" id="chatInput" type="text" placeholder="Message…" autocomplete="off">
+      <button class="send-btn" onclick="sendMessage()">↑</button>
+    </div>
+  </div>
+
+  <!-- ═══ PROFILE SCREEN ═══ -->
+  <div class="screen" id="screen-profile">
+    <div class="topbar">
+      <div class="wordmark">Gear<span>Trade</span></div>
+    </div>
+    <div class="scroll-area">
+      <div class="profile-wrap">
+        <div class="profile-hero">
+          <div class="profile-avi" id="profileAvi">?</div>
+          <div class="profile-username" id="profileUsername">–</div>
+          <div class="profile-loc" id="profileLoc">📍 Set your location</div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-num" id="statMatches">–</div><div class="stat-lbl">Matches</div></div>
+          <div class="stat-box"><div class="stat-num" id="statLikes">–</div><div class="stat-lbl">Likes</div></div>
+          <div class="stat-box"><div class="stat-num" id="statCars">–</div><div class="stat-lbl">Cars</div></div>
+        </div>
+        <div class="section-title">Account</div>
+        <div class="menu-list">
+          <div class="menu-item" onclick="showAddCar()"><span class="mi-icon">🚗</span> My Garage<span class="mi-arrow">›</span></div>
+          <div class="menu-item"><span class="mi-icon">✏️</span> Edit Profile<span class="mi-arrow">›</span></div>
+          <div class="menu-item"><span class="mi-icon">🔔</span> Notifications<span class="mi-arrow">›</span></div>
+          <div class="menu-item"><span class="mi-icon">❓</span> Help & Support<span class="mi-arrow">›</span></div>
+        </div>
+        <div class="section-title">Legal</div>
+        <div class="menu-list" style="margin-bottom:16px">
+          <div class="menu-item"><span class="mi-icon">📄</span> Privacy Policy<span class="mi-arrow">›</span></div>
+          <div class="menu-item"><span class="mi-icon">📋</span> Terms of Service<span class="mi-arrow">›</span></div>
+        </div>
+        <div class="menu-list">
+          <div class="menu-item danger" onclick="signOut()"><span class="mi-icon">🚪</span> Sign Out</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ BOTTOM NAV ═══ -->
+  <nav class="bottomnav" id="bottomNav" style="display:none">
+    <button class="nav-item active" id="nav-swipe" onclick="showScreen('swipe')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 2a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h10z"/><path d="M8 12l3 3 5-5"/></svg>
+      Discover
+    </button>
+    <button class="nav-item" id="nav-matches" onclick="showScreen('matches')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Matches
+      <span class="nav-badge" id="navBadge" style="display:none"></span>
+    </button>
+    <button class="nav-item" id="nav-profile" onclick="showScreen('profile')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Profile
+    </button>
+  </nav>
+
+  <!-- ═══ DETAIL PAGE (full screen) ═══ -->
+  <div id="screen-detail">
+    <!-- Photo hero -->
+    <div class="detail-photos">
+      <img class="detail-photo-main" id="detailMainPhoto" src="" alt="">
+      <div class="detail-photo-emoji" id="detailEmojiField" style="display:none"></div>
+      <button class="detail-back-btn" onclick="closeDetail()">←</button>
+      <div class="detail-photo-dots" id="detailPhotoDots"></div>
+    </div>
+
+    <!-- Thumbnail strip -->
+    <div class="detail-photo-strip" id="detailPhotoStrip"></div>
+
+    <!-- Scrollable content -->
+    <div class="detail-scroll">
+      <div class="detail-year-make" id="detailYearMake"></div>
+      <div class="detail-model" id="detailModel"></div>
+      <div class="detail-price" id="detailPrice"></div>
+
+      <div class="detail-chips" id="detailChips"></div>
+
+      <div class="detail-divider"></div>
+      <div class="detail-section-label">Listed by</div>
+      <div class="detail-owner-row">
+        <div class="detail-owner-avi" id="detailOwnerAvi"></div>
+        <div>
+          <div class="detail-owner-name" id="detailOwnerName"></div>
+          <div class="detail-owner-loc" id="detailOwnerLoc"></div>
+        </div>
+      </div>
+
+      <div class="detail-divider"></div>
+      <div class="detail-section-label">About this car</div>
+      <div class="detail-desc" id="detailDesc"></div>
+
+      <div id="detailSpecsWrap" style="display:none">
+        <div class="detail-divider"></div>
+        <div class="detail-section-label">Specs</div>
+        <div class="detail-specs-grid" id="detailSpecsGrid"></div>
+      </div>
+    </div>
+
+    <!-- Sticky bottom actions -->
+    <div class="detail-action-bar">
+      <button class="detail-nope-btn" id="detailNopeBtn">✕ Pass</button>
+      <button class="detail-like-btn" id="detailLikeBtn">♥ I Want This</button>
+    </div>
+  </div>
+
+  <!-- ═══ MATCH TOAST ═══ -->
+  <div class="match-toast" id="matchToast">
+    <div class="match-card">
+      <div class="match-cars"><span id="toastMyEmoji">🚗</span><span class="match-vs">❤️</span><span id="toastTheirEmoji">🚗</span></div>
+      <div class="match-headline">It's a Match!</div>
+      <div class="match-sub" id="toastSub">You and someone both liked each other's cars.</div>
+      <div class="match-actions">
+        <button class="btn btn-primary" id="toastMessageBtn">💬 Send a Message</button>
+        <button class="btn btn-ghost" onclick="closeMatchToast()">Keep Swiping</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ ADD CAR MODAL (simple full-screen) ═══ -->
+<div id="addCarModal" style="display:none;position:fixed;inset:0;z-index:5000;background:var(--black);overflow-y:auto;max-width:430px;left:50%;transform:translateX(-50%)">
+  <div style="padding:20px 22px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)">
+    <button class="back-btn" onclick="closeAddCar()">←</button>
+    <div style="font-family:var(--serif);font-size:22px">List a Car</div>
+  </div>
+  <div style="padding:24px 22px 60px;display:flex;flex-direction:column;gap:16px">
+    <div><div class="field-label">Make</div><input type="text" id="carMake" placeholder="e.g. Porsche"></div>
+    <div><div class="field-label">Model</div><input type="text" id="carModel" placeholder="e.g. 911 Turbo"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><div class="field-label">Year</div><input type="number" id="carYear" placeholder="2023" min="1900" max="2026"></div>
+      <div><div class="field-label">Mileage</div><input type="number" id="carMileage" placeholder="12000" min="0"></div>
+    </div>
+    <div><div class="field-label">Price ($)</div><input type="number" id="carPrice" placeholder="85000" min="0"></div>
+    <div>
+      <div class="field-label">Condition</div>
+      <select id="carCondition" style="width:100%;padding:15px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--white);font-size:16px;font-family:var(--sans);outline:none;-webkit-appearance:none">
+        <option value="Excellent">Excellent</option>
+        <option value="Good" selected>Good</option>
+        <option value="Fair">Fair</option>
+      </select>
+    </div>
+    <div>
+      <div class="field-label">Listing Type</div>
+      <select id="carListingType" style="width:100%;padding:15px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--white);font-size:16px;font-family:var(--sans);outline:none;-webkit-appearance:none">
+        <option value="both">Trade or Sell</option>
+        <option value="trade">Trade Only</option>
+        <option value="sale">Sale Only</option>
+      </select>
+    </div>
+    <div>
+      <div class="field-label">Icon</div>
+      <select id="carEmoji" style="width:100%;padding:15px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--white);font-size:16px;font-family:var(--sans);outline:none;-webkit-appearance:none">
+        <option value="🏎️">🏎️ Sports Car</option>
+        <option value="🚗">🚗 Sedan</option>
+        <option value="🚙">🚙 SUV</option>
+        <option value="🛻">🛻 Truck</option>
+        <option value="⚡">⚡ Electric</option>
+        <option value="🏍️">🏍️ Motorcycle</option>
+      </select>
+    </div>
+    <div><div class="field-label">Description</div><input type="text" id="carDesc" placeholder="Tell potential traders about your car…"></div>
+    <button class="btn btn-primary" onclick="submitCar()" style="margin-top:8px">List Car</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG & STATE
+// ─────────────────────────────────────────────
+const API = 'https://web-production-4615d.up.railway.app/api';
+let isDemo = false;
+let currentUser = null;
+let deck = [];
+let deckIdx = 0;
+let matchesList = [];
+let activeChatUserId = null;
+let activeChatUserName = null;
+let activeChatCar = null;
+let prevScreen = 'swipe';
+
+// Demo data
+const DEMO_CARS = [
+  {
+    id: 101, make: 'Porsche', model: '911 Turbo S', year: 2023, price: 230000, mileage: 5200,
+    condition: 'Excellent', emoji: '🏎️', owner_username: 'alexracing', owner_location: 'Miami, FL',
+    description: 'Guards Red with full carbon package. PDK, Sport Chrono, ceramic brakes. Zero track time — always garage kept. Fresh service at 5k miles.',
+    listing_type: 'both', owner_id: 201,
+    photos: ['https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=800&q=80','https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&q=80','https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80'],
+    specs: { 'Engine': '3.8L Twin-Turbo Flat-6', 'Power': '640 hp', 'Torque': '590 lb-ft', '0–60': '2.6s', 'Top Speed': '205 mph', 'Trans': '8-spd PDK' }
+  },
+  {
+    id: 102, make: 'Ferrari', model: 'Roma', year: 2022, price: 225000, mileage: 3100,
+    condition: 'Excellent', emoji: '🏎️', owner_username: 'jordan_drives', owner_location: 'Los Angeles, CA',
+    description: 'Grigio Silverstone over Charcoal leather. Adult driven, never tracked. All maintenance records on file. The most beautiful Ferrari in decades.',
+    listing_type: 'trade', owner_id: 202,
+    photos: ['https://images.unsplash.com/photo-1592198084033-aade902d1aae?w=800&q=80','https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=800&q=80','https://images.unsplash.com/photo-1555626906-fcf10d6851b4?w=800&q=80'],
+    specs: { 'Engine': '3.9L Twin-Turbo V8', 'Power': '612 hp', 'Torque': '561 lb-ft', '0–60': '3.4s', 'Top Speed': '199 mph', 'Trans': '8-spd DCT' }
+  },
+  {
+    id: 103, make: 'Nissan', model: 'Skyline GT-R R34', year: 1999, price: 175000, mileage: 31000,
+    condition: 'Excellent', emoji: '🏎️', owner_username: 'jdm_carlos', owner_location: 'San Diego, CA',
+    description: 'Bayside Blue V-Spec. Federalized and titled. Completely stock, no modifications. Numbers matching. Investment grade — these are only going up.',
+    listing_type: 'trade', owner_id: 203,
+    photos: ['https://images.unsplash.com/photo-1632245889029-e406faaa34cd?w=800&q=80','https://images.unsplash.com/photo-1547744152-14d985cb937f?w=800&q=80','https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80'],
+    specs: { 'Engine': '2.6L Twin-Turbo RB26', 'Power': '276 hp (est. 320)', 'Torque': '293 lb-ft', '0–60': '4.9s', 'Top Speed': '155 mph', 'Trans': '6-spd Manual' }
+  },
+  {
+    id: 104, make: 'BMW', model: 'M4 Competition', year: 2024, price: 88000, mileage: 800,
+    condition: 'Excellent', emoji: '🚗', owner_username: 'riley_bimmer', owner_location: 'Chicago, IL',
+    description: 'Isle of Man Green, 6-speed manual, carbon bucket seats. 800 miles. This is the spec every enthusiast wants and almost nobody ordered.',
+    listing_type: 'both', owner_id: 204,
+    photos: ['https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80','https://images.unsplash.com/photo-1619405399517-d7fce0f13302?w=800&q=80','https://images.unsplash.com/photo-1617531653332-bd46c16f4d68?w=800&q=80'],
+    specs: { 'Engine': '3.0L Twin-Turbo S58', 'Power': '503 hp', 'Torque': '479 lb-ft', '0–60': '3.8s', 'Top Speed': '155 mph', 'Trans': '6-spd Manual' }
+  },
+  {
+    id: 105, make: 'Ford', model: 'Mustang Mach 1', year: 1969, price: 145000, mileage: 12000,
+    condition: 'Excellent', emoji: '🏎️', owner_username: 'classic_diana', owner_location: 'Seattle, WA',
+    description: '428 Cobra Jet, Candy Apple Red. Frame-off restoration to factory spec. Numbers matching drivetrain. Trophy winner. This one will not last.',
+    listing_type: 'sale', owner_id: 205,
+    photos: ['https://images.unsplash.com/photo-1567808291548-fc3ee04dbcf0?w=800&q=80','https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&q=80','https://images.unsplash.com/photo-1489824904134-891ab64532f1?w=800&q=80'],
+    specs: { 'Engine': '7.0L 428 CJ V8', 'Power': '335 hp', 'Torque': '440 lb-ft', '0–60': '5.7s', 'Top Speed': '130 mph', 'Trans': '4-spd Manual' }
+  },
+  {
+    id: 106, make: 'Tesla', model: 'Model S Plaid', year: 2024, price: 89000, mileage: 4900,
+    condition: 'Excellent', emoji: '⚡', owner_username: 'alice_ev', owner_location: 'Austin, TX',
+    description: 'Midnight Silver, white interior, 21" Arachnid wheels. FSD included. Ludicrous Mode. Under factory warranty. Fastest production sedan ever made.',
+    listing_type: 'both', owner_id: 206,
+    photos: ['https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&q=80','https://images.unsplash.com/photo-1571987502227-9231b837d92a?w=800&q=80','https://images.unsplash.com/photo-1617788138017-80ad40651399?w=800&q=80'],
+    specs: { 'Engine': 'Tri-Motor Electric', 'Power': '1,020 hp', 'Torque': '1,050 lb-ft', '0–60': '1.99s', 'Top Speed': '200 mph', 'Trans': 'Single-speed' }
+  },
+];
+const DEMO_MATCHES = [
+  { matched_user_id: 202, matched_username: 'jordan_drives', their_car: 'Ferrari Roma', their_emoji: '🏎️', unread_count: 2, my_car: 'Your 911', matched_at: '2025-02-12' },
+  { matched_user_id: 206, matched_username: 'alice_ev', their_car: 'Tesla Model S Plaid', their_emoji: '⚡', unread_count: 0, my_car: 'Your 911', matched_at: '2025-02-11' },
+];
+
+// ─────────────────────────────────────────────
+// API HELPERS
+// ─────────────────────────────────────────────
+async function apiCall(endpoint, opts = {}) {
+  const token = localStorage.getItem('gt_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + endpoint, { ...opts, headers });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Error'); }
+  return res.json();
+}
+
+async function checkBackend() {
+  try {
+    await fetch(API.replace('/api', '/'), { signal: AbortSignal.timeout(1500) });
+    return true;
+  } catch { return false; }
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+async function init() {
+  const backendUp = await checkBackend();
+  isDemo = !backendUp;
+
+  if (isDemo) {
+    document.getElementById('demoBanner').classList.add('visible');
+  }
+
+  const savedToken = localStorage.getItem('gt_token');
+  const savedUser = localStorage.getItem('gt_user');
+
+  if (savedToken && savedUser) {
+    currentUser = JSON.parse(savedUser);
+    if (!isDemo) {
+      try { await apiCall('/auth/me'); }
+      catch { localStorage.clear(); currentUser = null; }
+    }
+    if (currentUser) {
+      bootApp();
+      return;
+    }
+  }
+  // Show auth
+}
+
+function bootApp() {
+  document.getElementById('screen-auth').classList.remove('active');
+  document.getElementById('bottomNav').style.display = 'flex';
+  setProfile();
+  showScreen('swipe');
+  loadDeck();
+}
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+function toggleAuth() {
+  const lf = document.getElementById('loginForm');
+  const sf = document.getElementById('signupForm');
+  const showing = lf.style.display !== 'none';
+  lf.style.display = showing ? 'none' : 'flex';
+  sf.style.display = showing ? 'flex' : 'none';
+  document.getElementById('authError').classList.remove('show');
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!username || !password) { showAuthError('Please fill in all fields.'); return; }
+
+  document.getElementById('loginBtn').textContent = 'Signing in…';
+  document.getElementById('loginBtn').disabled = true;
+
+  try {
+    if (isDemo) {
+      currentUser = { id: 1, username, email: username + '@demo.com', location: 'Demo City' };
+    } else {
+      const data = await apiCall('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+      localStorage.setItem('gt_token', data.token);
+      currentUser = { id: data.user_id, username: data.username };
+    }
+    localStorage.setItem('gt_user', JSON.stringify(currentUser));
+    bootApp();
+  } catch (e) {
+    showAuthError(e.message || 'Login failed. Check your credentials.');
+  } finally {
+    document.getElementById('loginBtn').textContent = 'Sign In';
+    document.getElementById('loginBtn').disabled = false;
+  }
+});
+
+document.getElementById('signupBtn').addEventListener('click', async () => {
+  const username = document.getElementById('signupUsername').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  if (!username || !email || !password) { showAuthError('Please fill in all fields.'); return; }
+  if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+
+  document.getElementById('signupBtn').textContent = 'Creating…';
+  document.getElementById('signupBtn').disabled = true;
+
+  try {
+    if (isDemo) {
+      currentUser = { id: 1, username, email, location: '' };
+    } else {
+      const data = await apiCall('/auth/signup', { method: 'POST', body: JSON.stringify({ username, email, password }) });
+      localStorage.setItem('gt_token', data.token);
+      currentUser = { id: data.user_id, username: data.username };
+    }
+    localStorage.setItem('gt_user', JSON.stringify(currentUser));
+    bootApp();
+  } catch (e) {
+    showAuthError(e.message || 'Signup failed. Username or email may already exist.');
+  } finally {
+    document.getElementById('signupBtn').textContent = 'Create Account';
+    document.getElementById('signupBtn').disabled = false;
+  }
+});
+
+function signOut() {
+  localStorage.clear();
+  currentUser = null;
+  deck = [];
+  deckIdx = 0;
+  matchesList = [];
+  document.getElementById('bottomNav').style.display = 'none';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-auth').classList.add('active');
+  document.getElementById('loginForm').style.display = 'flex';
+  document.getElementById('signupForm').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────
+function showScreen(name) {
+  if (name !== 'chat') prevScreen = name;
+  const screens = ['swipe', 'matches', 'profile'];
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  if (navBtn) navBtn.classList.add('active');
+  if (name === 'matches') loadMatches();
+  if (name === 'profile') loadProfile();
+}
+
+function goBack() {
+  showScreen(prevScreen);
+}
+
+// ─────────────────────────────────────────────
+// SWIPE / DECK
+// ─────────────────────────────────────────────
+async function loadDeck() {
+  try {
+    if (isDemo) {
+      deck = [...DEMO_CARS];
+    } else {
+      const data = await apiCall('/cars/marketplace');
+      deck = data.cars || [];
+    }
+  } catch {
+    deck = [...DEMO_CARS];
+  }
+  deckIdx = 0;
+  renderDeck();
+}
+
+async function refreshDeck() {
+  await loadDeck();
+}
+
+function renderDeck() {
+  const stack = document.getElementById('cardStack');
+  const empty = document.getElementById('emptyDeck');
+  const actions = document.getElementById('swipeActions');
+  const counter = document.getElementById('cardCounter');
+
+  // Clear existing cards
+  stack.querySelectorAll('.car-card').forEach(c => c.remove());
+
+  const remaining = deck.length - deckIdx;
+  if (remaining <= 0) {
+    empty.style.display = 'flex';
+    actions.style.display = 'none';
+    counter.textContent = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  actions.style.display = 'flex';
+  counter.textContent = remaining + ' cars near you';
+
+  // Render up to 3 cards (back to front)
+  const visible = Math.min(3, remaining);
+  for (let i = visible - 1; i >= 0; i--) {
+    const car = deck[deckIdx + i];
+    const card = buildCard(car, i);
+    stack.appendChild(card);
+  }
+}
+
+function buildCard(car, stackPos) {
+  const card = document.createElement('div');
+  card.className = 'car-card' + (stackPos === 0 ? '' : stackPos === 1 ? ' is-second' : ' is-third');
+  card.dataset.carId = car.id;
+
+  // Resolve photo: prefer photos array, then primary_photo from backend, then null
+  const photos = (car.photos && car.photos.length) ? car.photos
+               : car.primary_photo ? [car.primary_photo]
+               : [];
+
+  const priceStr = '$' + (car.price || 0).toLocaleString();
+
+  if (photos.length) {
+    const dotsHtml = photos.length > 1
+      ? `<div class="photo-dots">${photos.map((_, i) =>
+          `<div class="photo-dot${i === 0 ? ' active' : ''}"></div>`).join('')}</div>`
+      : '';
+    card.innerHTML = `
+      <img class="card-photo" id="cardPhoto_${car.id}" src="${photos[0]}" alt="${car.make} ${car.model}" loading="eager">
+      <div class="card-gradient"></div>
+      ${dotsHtml}
+      <div class="card-tap-hint">Tap for details</div>
+      <div class="card-overlay">
+        <div class="card-overlay-year">${car.year} · ${car.make}</div>
+        <div class="card-overlay-name">${car.model}</div>
+        <div class="card-overlay-row">
+          <div class="card-overlay-price">${priceStr}</div>
+          <div class="card-overlay-loc">📍 ${car.owner_location || '—'}</div>
+        </div>
+      </div>
+      <div class="vote-label like" id="likeLabel_${car.id}">LIKE</div>
+      <div class="vote-label nope" id="nopeLabel_${car.id}">NOPE</div>
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="card-emoji-fallback">${car.emoji || '🚗'}</div>
+      <div class="card-gradient"></div>
+      <div class="card-tap-hint">Tap for details</div>
+      <div class="card-overlay">
+        <div class="card-overlay-year">${car.year} · ${car.make}</div>
+        <div class="card-overlay-name">${car.model}</div>
+        <div class="card-overlay-row">
+          <div class="card-overlay-price">${priceStr}</div>
+          <div class="card-overlay-loc">📍 ${car.owner_location || '—'}</div>
+        </div>
+      </div>
+      <div class="vote-label like" id="likeLabel_${car.id}">LIKE</div>
+      <div class="vote-label nope" id="nopeLabel_${car.id}">NOPE</div>
+    `;
+  }
+
+  if (stackPos === 0) {
+    setupDrag(card, car, photos);
+  }
+
+  return card;
+}
+
+// ─────────────────────────────────────────────
+// DETAIL PAGE
+// ─────────────────────────────────────────────
+let detailCar = null;
+let detailPhotoIdx = 0;
+
+function openDetail(car, photos) {
+  detailCar = car;
+  detailPhotoIdx = 0;
+  const el = document.getElementById('screen-detail');
+
+  // Photos
+  const mainImg = document.getElementById('detailMainPhoto');
+  const emojiDiv = document.getElementById('detailEmojiField');
+  const strip    = document.getElementById('detailPhotoStrip');
+  const dots     = document.getElementById('detailPhotoDots');
+
+  if (photos.length) {
+    mainImg.src = photos[0];
+    mainImg.style.display = 'block';
+    emojiDiv.style.display = 'none';
+  } else {
+    mainImg.style.display = 'none';
+    emojiDiv.style.display = 'flex';
+    emojiDiv.textContent = car.emoji || '🚗';
+  }
+
+  // Dots
+  dots.innerHTML = photos.length > 1
+    ? photos.map((_, i) => `<div class="photo-dot${i === 0 ? ' active' : ''}"></div>`).join('')
+    : '';
+
+  // Thumbnail strip
+  if (photos.length > 1) {
+    strip.innerHTML = photos.map((p, i) =>
+      `<img class="detail-strip-thumb${i === 0 ? ' active' : ''}" src="${p}" data-idx="${i}">`
+    ).join('');
+    strip.style.display = 'flex';
+    strip.querySelectorAll('.detail-strip-thumb').forEach(t => {
+      t.addEventListener('click', () => selectDetailPhoto(parseInt(t.dataset.idx), photos));
+    });
+  } else if (!photos.length) {
+    strip.innerHTML = `<div class="detail-strip-emoji">${car.emoji || '🚗'}</div>`;
+    strip.style.display = 'flex';
+  } else {
+    strip.style.display = 'none';
+  }
+
+  // Text fields
+  document.getElementById('detailYearMake').textContent = car.year + ' · ' + car.make;
+  document.getElementById('detailModel').textContent = car.model;
+  document.getElementById('detailPrice').textContent = '$' + (car.price || 0).toLocaleString();
+  document.getElementById('detailOwnerAvi').textContent = (car.owner_username || '?')[0].toUpperCase();
+  document.getElementById('detailOwnerName').textContent = '@' + (car.owner_username || 'unknown');
+  document.getElementById('detailOwnerLoc').textContent = '📍 ' + (car.owner_location || 'Location not set');
+  document.getElementById('detailDesc').textContent = car.description || 'No description provided.';
+
+  // Chips
+  const mileStr  = (car.mileage || 0).toLocaleString() + ' mi';
+  const typeLabel = car.listing_type === 'trade' ? 'Trade Only' : car.listing_type === 'sale' ? 'For Sale' : 'Trade or Sell';
+  const typeClass = car.listing_type === 'trade' ? 'gold' : car.listing_type === 'sale' ? 'green' : 'red';
+  document.getElementById('detailChips').innerHTML = `
+    <span class="detail-chip">📏 ${mileStr}</span>
+    <span class="detail-chip green">⭐ ${car.condition || '—'}</span>
+    <span class="detail-chip ${typeClass}">${typeLabel}</span>
+  `;
+
+  // Specs (demo cars only)
+  const specsWrap = document.getElementById('detailSpecsWrap');
+  const specsGrid = document.getElementById('detailSpecsGrid');
+  if (car.specs && Object.keys(car.specs).length) {
+    specsGrid.innerHTML = Object.entries(car.specs).map(([k, v]) =>
+      `<div class="detail-spec"><div class="detail-spec-label">${k}</div><div class="detail-spec-val">${v}</div></div>`
+    ).join('');
+    specsWrap.style.display = 'block';
+  } else {
+    specsWrap.style.display = 'none';
+  }
+
+  // Action buttons
+  document.getElementById('detailLikeBtn').onclick = () => {
+    closeDetail();
+    const topCard = document.querySelector('.car-card:not(.is-second):not(.is-third)');
+    if (topCard) animateOut(topCard, 'right', () => doSwipe('like'));
+    else doSwipe('like');
+  };
+  document.getElementById('detailNopeBtn').onclick = () => {
+    closeDetail();
+    const topCard = document.querySelector('.car-card:not(.is-second):not(.is-third)');
+    if (topCard) animateOut(topCard, 'left', () => doSwipe('nope'));
+    else doSwipe('nope');
+  };
+
+  document.getElementById('screen-detail').classList.add('open');
+  document.getElementById('screen-detail').querySelector('.detail-scroll').scrollTop = 0;
+}
+
+function selectDetailPhoto(idx, photos) {
+  detailPhotoIdx = idx;
+  document.getElementById('detailMainPhoto').src = photos[idx];
+  document.querySelectorAll('.detail-strip-thumb').forEach((t, i) =>
+    t.classList.toggle('active', i === idx));
+  document.querySelectorAll('#detailPhotoDots .photo-dot').forEach((d, i) =>
+    d.classList.toggle('active', i === idx));
+}
+
+function closeDetail() {
+  document.getElementById('screen-detail').classList.remove('open');
+  detailCar = null;
+}
+
+// ── Single shared drag state, document listeners attached once ──
+let _dragCard = null, _dragCar = null, _dragPhotos = null;
+let _startX = 0, _startY = 0, _curX = 0, _curY = 0;
+let _active = false, _didMove = false;
+
+function _getDragLabels() {
+  if (!_dragCar) return [null, null];
+  return [
+    document.getElementById('likeLabel_' + _dragCar.id),
+    document.getElementById('nopeLabel_' + _dragCar.id)
+  ];
+}
+
+document.addEventListener('mousemove', e => {
+  if (!_active) return;
+  _curX = e.clientX - _startX;
+  _curY = (e.clientY - _startY) * 0.3;
+  if (Math.abs(_curX) > 12 || Math.abs(e.clientY - _startY) > 12) _didMove = true;
+  _dragCard.style.transform = `translate(${_curX}px,${_curY}px) rotate(${_curX / 18}deg)`;
+  const p = Math.min(Math.abs(_curX) / 80, 1);
+  const [ll, nl] = _getDragLabels();
+  if (ll) ll.style.opacity = _curX > 20  ? p : 0;
+  if (nl) nl.style.opacity = _curX < -20 ? p : 0;
+});
+
+document.addEventListener('mouseup', () => {
+  if (!_active) return;
+  _active = false;
+  _dragCard.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+  const [ll, nl] = _getDragLabels();
+  if (!_didMove) {
+    _dragCard.style.transform = '';
+    if (ll) ll.style.opacity = 0;
+    if (nl) nl.style.opacity = 0;
+    openDetail(_dragCar, _dragPhotos);
+    return;
+  }
+  if      (_curX >  90) animateOut(_dragCard, 'right', () => doSwipe('like'));
+  else if (_curX < -90) animateOut(_dragCard, 'left',  () => doSwipe('nope'));
+  else {
+    _dragCard.style.transform = '';
+    if (ll) ll.style.opacity = 0;
+    if (nl) nl.style.opacity = 0;
+  }
+  _curX = 0; _curY = 0;
+});
+
+document.addEventListener('touchmove', e => {
+  if (!_active) return;
+  const t = e.touches[0];
+  _curX = t.clientX - _startX;
+  _curY = (t.clientY - _startY) * 0.3;
+  if (Math.abs(_curX) > 12 || Math.abs(t.clientY - _startY) > 12) _didMove = true;
+  _dragCard.style.transform = `translate(${_curX}px,${_curY}px) rotate(${_curX / 18}deg)`;
+  const p = Math.min(Math.abs(_curX) / 80, 1);
+  const [ll, nl] = _getDragLabels();
+  if (ll) ll.style.opacity = _curX > 20  ? p : 0;
+  if (nl) nl.style.opacity = _curX < -20 ? p : 0;
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (!_active) return;
+  _active = false;
+  _dragCard.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+  const [ll, nl] = _getDragLabels();
+  if (!_didMove) {
+    _dragCard.style.transform = '';
+    if (ll) ll.style.opacity = 0;
+    if (nl) nl.style.opacity = 0;
+    openDetail(_dragCar, _dragPhotos);
+    return;
+  }
+  if      (_curX >  90) animateOut(_dragCard, 'right', () => doSwipe('like'));
+  else if (_curX < -90) animateOut(_dragCard, 'left',  () => doSwipe('nope'));
+  else {
+    _dragCard.style.transform = '';
+    if (ll) ll.style.opacity = 0;
+    if (nl) nl.style.opacity = 0;
+  }
+  _curX = 0; _curY = 0;
+});
+
+function setupDrag(card, car, photos) {
+  card.addEventListener('mousedown', e => {
+    e.preventDefault();
+    _dragCard = card; _dragCar = car; _dragPhotos = photos;
+    _active = true; _didMove = false;
+    _startX = e.clientX; _startY = e.clientY;
+    _curX = 0; _curY = 0;
+    card.style.transition = 'none';
+  });
+
+  card.addEventListener('touchstart', e => {
+    _dragCard = card; _dragCar = car; _dragPhotos = photos;
+    _active = true; _didMove = false;
+    _startX = e.touches[0].clientX; _startY = e.touches[0].clientY;
+    _curX = 0; _curY = 0;
+    card.style.transition = 'none';
+  }, { passive: true });
+}
+
+function animateOut(card, dir, callback) {
+  const x = dir === 'right' ? 500 : -500;
+  card.style.transition = 'transform 0.35s ease-in, opacity 0.35s ease-in';
+  card.style.transform = `translateX(${x}px) rotate(${dir === 'right' ? 25 : -25}deg)`;
+  card.style.opacity = '0';
+  setTimeout(callback, 320);
+}
+
+
+async function doSwipe(action) {
+  const car = deck[deckIdx];
+  if (!car) return;
+
+  deckIdx++;
+
+  try {
+    let result;
+    if (isDemo) {
+      // 25% random match in demo
+      result = { match: action === 'like' && Math.random() > 0.75, matched_user: car.owner_username };
+    } else {
+      result = await apiCall('/swipe', { method: 'POST', body: JSON.stringify({ car_id: car.id, action }) });
+    }
+
+    if (result.match) {
+      showMatchToast(car, result.matched_user);
+    }
+  } catch { /* silent */ }
+
+  renderDeck();
+}
+
+// ─────────────────────────────────────────────
+// MATCH TOAST
+// ─────────────────────────────────────────────
+function showMatchToast(car, matchedUser) {
+  document.getElementById('toastMyEmoji').textContent = '🚗';
+  document.getElementById('toastTheirEmoji').textContent = car.emoji || '🚗';
+  document.getElementById('toastSub').textContent = `You and ${matchedUser} both want to trade! Send a message to seal the deal.`;
+
+  document.getElementById('toastMessageBtn').onclick = () => {
+    closeMatchToast();
+    openChat(car.owner_id, matchedUser, car.make + ' ' + car.model);
+  };
+
+  document.getElementById('matchToast').classList.add('show');
+}
+
+function closeMatchToast() {
+  document.getElementById('matchToast').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────
+// MATCHES
+// ─────────────────────────────────────────────
+async function loadMatches() {
+  const list = document.getElementById('matchesList');
+  list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)"><div class="spinner"></div></div>';
+
+  try {
+    if (isDemo) {
+      matchesList = DEMO_MATCHES;
+    } else {
+      const data = await apiCall('/matches');
+      matchesList = data.matches || [];
+    }
+  } catch {
+    matchesList = DEMO_MATCHES;
+  }
+
+  const totalUnread = matchesList.reduce((s, m) => s + (m.unread_count || 0), 0);
+  document.getElementById('matchCount').textContent = matchesList.length + ' matches';
+  const badge = document.getElementById('navBadge');
+  if (totalUnread > 0) { badge.textContent = totalUnread; badge.style.display = 'flex'; }
+  else { badge.style.display = 'none'; }
+
+  if (!matchesList.length) {
+    list.innerHTML = `
+      <div class="no-matches">
+        <div class="big-icon">💬</div>
+        <h3>No matches yet</h3>
+        <p style="font-size:14px;line-height:1.6">Keep swiping! When someone likes your car back, they'll appear here.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = matchesList.map(m => `
+    <div class="match-row ${m.unread_count > 0 ? 'unread' : ''}" onclick="openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}')">
+      <div class="match-avi">${m.their_emoji || '🚗'}</div>
+      <div class="match-info">
+        <div class="match-name">${m.matched_username}</div>
+        <div class="match-car">${m.their_car}</div>
+      </div>
+      <div class="match-meta">
+        <div class="match-time">${formatDate(m.matched_at)}</div>
+        ${m.unread_count > 0 ? '<div class="match-unread-dot"></div>' : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────
+function openChat(userId, username, carName) {
+  activeChatUserId = userId;
+  activeChatUserName = username;
+  activeChatCar = carName;
+
+  document.getElementById('chatPeerName').textContent = username;
+  document.getElementById('chatPeerCar').textContent = carName;
+
+  showScreen('chat');
+  loadMessages();
+}
+
+async function loadMessages() {
+  const scroll = document.getElementById('messagesScroll');
+  scroll.innerHTML = '';
+
+  let msgs = [];
+  try {
+    if (isDemo) {
+      msgs = [
+        { sender_id: activeChatUserId, content: 'Hey! Love your car. Would you consider a trade?', created_at: new Date(Date.now() - 3600000).toISOString() },
+        { sender_id: currentUser.id, content: "I might be open to it. What's the condition like?", created_at: new Date(Date.now() - 3000000).toISOString() },
+        { sender_id: activeChatUserId, content: "Showroom condition. Under 4k miles. Garage kept my whole ownership.", created_at: new Date(Date.now() - 1800000).toISOString() },
+      ];
+    } else {
+      const data = await apiCall('/messages/' + activeChatUserId);
+      msgs = data.messages || [];
+    }
+  } catch { msgs = []; }
+
+  if (!msgs.length) {
+    scroll.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:14px">No messages yet. Say hello! 👋</div>`;
+    return;
+  }
+
+  msgs.forEach(m => {
+    const isMe = m.sender_id === currentUser.id;
+    const div = document.createElement('div');
+    div.className = 'msg ' + (isMe ? 'me' : 'them');
+    div.innerHTML = m.content + `<div class="msg-time">${formatTime(m.created_at)}</div>`;
+    scroll.appendChild(div);
+  });
+
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  const scroll = document.getElementById('messagesScroll');
+  const div = document.createElement('div');
+  div.className = 'msg me fade-up';
+  div.innerHTML = text + `<div class="msg-time">Just now</div>`;
+  scroll.appendChild(div);
+  scroll.scrollTop = scroll.scrollHeight;
+
+  try {
+    if (!isDemo) {
+      await apiCall('/messages', { method: 'POST', body: JSON.stringify({ receiver_id: activeChatUserId, content: text }) });
+    }
+  } catch { /* silent */ }
+}
+
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+// ─────────────────────────────────────────────
+// PROFILE
+// ─────────────────────────────────────────────
+function setProfile() {
+  if (!currentUser) return;
+  document.getElementById('profileAvi').textContent = currentUser.username?.[0]?.toUpperCase() || '?';
+  document.getElementById('profileUsername').textContent = currentUser.username;
+  document.getElementById('profileLoc').textContent = '📍 ' + (currentUser.location || 'Location not set');
+}
+
+async function loadProfile() {
+  setProfile();
+  try {
+    if (isDemo) {
+      document.getElementById('statMatches').textContent = '3';
+      document.getElementById('statLikes').textContent = '14';
+      document.getElementById('statCars').textContent = '2';
+      return;
+    }
+    const stats = await apiCall('/stats');
+    document.getElementById('statMatches').textContent = stats.matches;
+    document.getElementById('statLikes').textContent = stats.likes_received;
+    document.getElementById('statCars').textContent = stats.cars;
+  } catch {}
+}
+
+// ─────────────────────────────────────────────
+// ADD CAR
+// ─────────────────────────────────────────────
+function showAddCar() {
+  document.getElementById('addCarModal').style.display = 'block';
+}
+function closeAddCar() {
+  document.getElementById('addCarModal').style.display = 'none';
+}
+
+async function submitCar() {
+  const make = document.getElementById('carMake').value.trim();
+  const model = document.getElementById('carModel').value.trim();
+  const year = parseInt(document.getElementById('carYear').value);
+  const mileage = parseInt(document.getElementById('carMileage').value) || 0;
+  const price = parseInt(document.getElementById('carPrice').value) || 0;
+  const condition = document.getElementById('carCondition').value;
+  const listing_type = document.getElementById('carListingType').value;
+  const emoji = document.getElementById('carEmoji').value;
+  const description = document.getElementById('carDesc').value.trim();
+
+  if (!make || !model || !year) { alert('Please fill in make, model, and year.'); return; }
+
+  try {
+    if (!isDemo) {
+      await apiCall('/cars', { method: 'POST', body: JSON.stringify({ make, model, year, mileage, price, condition, listing_type, emoji, description }) });
+    } else {
+      // Add to local demo deck
+      deck.unshift({ id: Date.now(), make, model, year, mileage, price, condition, listing_type, emoji, description, owner_username: currentUser.username, owner_location: 'Your City', owner_id: currentUser.id });
+    }
+    closeAddCar();
+    alert('✅ Car listed!');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const diff = (Date.now() - d) / 1000;
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+// ─────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

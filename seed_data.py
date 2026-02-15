@@ -1,14 +1,11 @@
 """
-GearTrade Initialize — PostgreSQL version
-Run once to seed the database with users and cars.
+GearTrade Seed Data
+Run once after starting the backend fresh to populate the marketplace.
+Usage: python3 seed_data.py
 """
-import os, hashlib
-import psycopg2
-import psycopg2.extras
+import sqlite3, hashlib
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL environment variable not set")
+DB_PATH = "geartrade.db"
 
 def h(p): return hashlib.sha256(p.encode()).hexdigest()
 
@@ -52,10 +49,10 @@ CARS = [
     "desc":"Crystal White Pearl, stock. Only 500 made. The most capable all-weather performance car at this price.",
     "photos":["https://images.unsplash.com/photo-1616788494707-ec28f08d05a1?w=800&q=80","https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&q=80"]},
   { "owner":"subaroo_pete", "make":"Lamborghini", "model":"Huracán EVO",           "year":2022, "price":265000, "mileage":4500,  "condition":"Excellent", "type":"both",  "emoji":"🏎️",
-    "desc":"Giallo Orion, black Alcantara. LDVI torque vectoring, ANIMA selector, titanium exhaust.",
+    "desc":"Giallo Orion, black Alcantara. LDVI torque vectoring, ANIMA selector, titanium exhaust. Savage.",
     "photos":["https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80","https://images.unsplash.com/photo-1592198084033-aade902d1aae?w=800&q=80"]},
   { "owner":"jdm_carlos",   "make":"Toyota",      "model":"Supra MK4",             "year":1998, "price":120000, "mileage":28000, "condition":"Excellent", "type":"both",  "emoji":"🏎️",
-    "desc":"Renaissance Red, single turbo, 6-speed manual. All original. Holy grail of JDM.",
+    "desc":"Renaissance Red, single turbo, 6-speed manual. All original, zero modifications. Holy grail of JDM.",
     "photos":["https://images.unsplash.com/photo-1632245889029-e406faaa34cd?w=800&q=80","https://images.unsplash.com/photo-1547744152-14d985cb937f?w=800&q=80"]},
   { "owner":"riley_bimmer", "make":"McLaren",     "model":"720S",                  "year":2021, "price":280000, "mileage":7800,  "condition":"Excellent", "type":"trade", "emoji":"🏎️",
     "desc":"Papaya Spark, electrochromic roof, nose lift, B&W audio. Serviced at McLaren Beverly Hills.",
@@ -63,55 +60,46 @@ CARS = [
 ]
 
 def seed():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    print("🌱 Seeding GearTrade (PostgreSQL)...")
-
-    # Check if already seeded
-    c.execute("SELECT COUNT(*) as count FROM cars")
-    if c.fetchone()['count'] > 0:
-        print("⚠️  Database already has cars — skipping seed to avoid duplicates.")
-        conn.close()
-        return
+    print("🌱 Seeding GearTrade...")
 
     user_ids = {}
     for username, email, location, bio in USERS:
         try:
-            c.execute("INSERT INTO users (username,email,password_hash,location,bio) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+            c.execute("INSERT INTO users (username,email,password_hash,location,bio) VALUES (?,?,?,?,?)",
                       (username, email, h("password123"), location, bio))
-            user_ids[username] = c.fetchone()['id']
+            user_ids[username] = c.lastrowid
             print(f"  ✅ User: {username}")
-        except Exception:
-            conn.rollback()
-            c.execute("SELECT id FROM users WHERE username=%s", (username,))
-            row = c.fetchone()
-            if row: user_ids[username] = row['id']
-
+        except sqlite3.IntegrityError:
+            c.execute("SELECT id FROM users WHERE username=?", (username,))
+            user_ids[username] = c.fetchone()[0]
+            print(f"  ↩️  Exists: {username}")
     conn.commit()
 
     for car in CARS:
         oid = user_ids.get(car["owner"])
         if not oid: continue
         try:
-            c.execute("""INSERT INTO cars (owner_id,make,model,year,price,mileage,condition,listing_type,description,emoji)
-                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            c.execute("INSERT INTO cars (owner_id,make,model,year,price,mileage,condition,listing_type,description,emoji) VALUES (?,?,?,?,?,?,?,?,?,?)",
                       (oid, car["make"], car["model"], car["year"], car["price"],
                        car["mileage"], car["condition"], car["type"], car["desc"], car["emoji"]))
-            cid = c.fetchone()['id']
+            cid = c.lastrowid
             for i, url in enumerate(car["photos"]):
-                c.execute("INSERT INTO car_photos (car_id,photo_path,is_primary) VALUES (%s,%s,%s)",
-                          (cid, url, i == 0))
+                c.execute("INSERT INTO car_photos (car_id,photo_path,is_primary) VALUES (?,?,?)",
+                          (cid, url, 1 if i==0 else 0))
             print(f"  ✅ {car['year']} {car['make']} {car['model']} — {len(car['photos'])} photos")
         except Exception as e:
-            conn.rollback()
             print(f"  ❌ {car['model']}: {e}")
-            continue
-
     conn.commit()
-    c.execute("SELECT COUNT(*) as count FROM cars"); nc = c.fetchone()['count']
-    c.execute("SELECT COUNT(*) as count FROM car_photos"); np = c.fetchone()['count']
+
+    c.execute("SELECT COUNT(*) FROM cars"); nc = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM car_photos"); np = c.fetchone()[0]
     conn.close()
     print(f"\n🎉 Done! {len(USERS)} users · {nc} cars · {np} photos")
+    print("\nAll accounts use password: password123")
+    for u in USERS: print(f"   {u[0]}")
 
 if __name__ == "__main__":
     seed()

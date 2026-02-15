@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import hashlib
 import secrets
 from datetime import datetime, timedelta
@@ -39,8 +40,8 @@ security = HTTPBearer()
 
 # Database connection
 def get_db():
-    conn = sqlite3.connect('geartrade.db', check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(os.environ.get('DATABASE_URL'), cursor_factory=psycopg2.extras.RealDictCursor)
+    conn.autocommit = False
     return conn
 
 # Password hashing
@@ -96,8 +97,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     cursor.execute("""
         SELECT user_id FROM sessions 
-        WHERE session_token = ? 
-        AND datetime(created_at, '+7 days') > datetime('now')
+        WHERE session_token = %s 
+        AND created_at + INTERVAL '7 days' > NOW()
     """, (token,))
     
     result = cursor.fetchone()
@@ -115,7 +116,7 @@ def init_database():
     
     # Users table
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
@@ -127,7 +128,7 @@ def init_database():
     
     # Sessions table
     cursor.execute('''CREATE TABLE IF NOT EXISTS sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         session_token TEXT UNIQUE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -136,7 +137,7 @@ def init_database():
     
     # Cars table
     cursor.execute('''CREATE TABLE IF NOT EXISTS cars (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         owner_id INTEGER NOT NULL,
         make TEXT NOT NULL,
         model TEXT NOT NULL,
@@ -147,7 +148,7 @@ def init_database():
         listing_type TEXT DEFAULT 'both',
         description TEXT,
         emoji TEXT DEFAULT '🚗',
-        is_active BOOLEAN DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
         view_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (owner_id) REFERENCES users(id)
@@ -155,17 +156,17 @@ def init_database():
     
     # Car photos table
     cursor.execute('''CREATE TABLE IF NOT EXISTS car_photos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         car_id INTEGER NOT NULL,
         photo_path TEXT NOT NULL,
-        is_primary BOOLEAN DEFAULT 0,
+        is_primary BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
     )''')
     
     # Likes table
     cursor.execute('''CREATE TABLE IF NOT EXISTS likes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         car_id INTEGER NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -176,7 +177,7 @@ def init_database():
     
     # Dismissals table
     cursor.execute('''CREATE TABLE IF NOT EXISTS dismissals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         car_id INTEGER NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -187,11 +188,11 @@ def init_database():
     
     # Messages table
     cursor.execute('''CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         sender_id INTEGER NOT NULL,
         receiver_id INTEGER NOT NULL,
         content TEXT NOT NULL,
-        is_read BOOLEAN DEFAULT 0,
+        is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (sender_id) REFERENCES users(id),
         FOREIGN KEY (receiver_id) REFERENCES users(id)
@@ -199,7 +200,7 @@ def init_database():
     
     # Matches table (denormalized for performance)
     cursor.execute('''CREATE TABLE IF NOT EXISTS matches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user1_id INTEGER NOT NULL,
         user2_id INTEGER NOT NULL,
         car1_id INTEGER NOT NULL,
@@ -237,16 +238,16 @@ async def signup(user: UserSignup):
         password_hash = hash_password(user.password)
         cursor.execute("""
             INSERT INTO users (username, email, password_hash, location, bio)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
         """, (user.username, user.email, password_hash, user.location, user.bio))
         
-        user_id = cursor.lastrowid
+        user_id = cursor.fetchone()['id']
         
         # Create session
         session_token = generate_token()
         cursor.execute("""
             INSERT INTO sessions (user_id, session_token)
-            VALUES (?, ?)
+            VALUES (%s, %s)
         """, (user_id, session_token))
         
         db.commit()
@@ -257,7 +258,7 @@ async def signup(user: UserSignup):
             "username": user.username,
             "token": session_token
         }
-    except sqlite3.IntegrityError:
+    except Exception:
         raise HTTPException(status_code=400, detail="Username or email already exists")
     finally:
         db.close()
@@ -270,7 +271,7 @@ async def login(credentials: UserLogin):
     cursor.execute("""
         SELECT id, username, password_hash 
         FROM users 
-        WHERE username = ?
+        WHERE username = %s
     """, (credentials.username,))
     
     user = cursor.fetchone()
@@ -282,7 +283,7 @@ async def login(credentials: UserLogin):
     session_token = generate_token()
     cursor.execute("""
         INSERT INTO sessions (user_id, session_token)
-        VALUES (?, ?)
+        VALUES (%s, %s)
     """, (user['id'], session_token))
     
     db.commit()
@@ -311,7 +312,7 @@ async def get_me(user_id: int = Depends(get_current_user)):
     
     cursor.execute("""
         SELECT id, username, email, location, bio, profile_photo, created_at
-        FROM users WHERE id = ?
+        FROM users WHERE id = %s
     """, (user_id,))
     
     user = cursor.fetchone()
@@ -341,9 +342,9 @@ async def get_marketplace(user_id: int = Depends(get_current_user)):
         FROM cars c
         JOIN users u ON c.owner_id = u.id
         WHERE c.is_active = 1
-        AND c.owner_id != ?
-        AND c.id NOT IN (SELECT car_id FROM likes WHERE user_id = ?)
-        AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = ?)
+        AND c.owner_id != %s
+        AND c.id NOT IN (SELECT car_id FROM likes WHERE user_id = %s)
+        AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = %s)
         ORDER BY c.created_at DESC
         LIMIT 20
     """, (user_id, user_id, user_id))
@@ -374,7 +375,7 @@ async def get_my_garage(user_id: int = Depends(get_current_user)):
             (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = 1 LIMIT 1) as primary_photo,
             (SELECT COUNT(*) FROM likes WHERE car_id = c.id) as like_count
         FROM cars c
-        WHERE c.owner_id = ? AND c.is_active = 1
+        WHERE c.owner_id = %s AND c.is_active = 1
         ORDER BY c.created_at DESC
     """, (user_id,))
     
@@ -391,11 +392,11 @@ async def create_car(car: CarCreate, user_id: int = Depends(get_current_user)):
     
     cursor.execute("""
         INSERT INTO cars (owner_id, make, model, year, price, mileage, condition, listing_type, description, emoji)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
     """, (user_id, car.make, car.model, car.year, car.price, car.mileage, 
           car.condition, car.listing_type, car.description, car.emoji))
     
-    car_id = cursor.lastrowid
+    car_id = cursor.fetchone()['id']
     db.commit()
     db.close()
     
@@ -426,7 +427,7 @@ async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get
         values.append(car_id)
         cursor.execute(f"""
             UPDATE cars SET {', '.join(update_fields)}
-            WHERE id = ?
+            WHERE id = %s
         """, values)
         db.commit()
     
@@ -439,7 +440,7 @@ async def delete_car(car_id: int, user_id: int = Depends(get_current_user)):
     db = get_db()
     cursor = db.cursor()
     
-    cursor.execute("UPDATE cars SET is_active = 0 WHERE id = ? AND owner_id = ?", (car_id, user_id))
+    cursor.execute("UPDATE cars SET is_active = FALSE WHERE id = %s AND owner_id = %s", (car_id, user_id))
     
     if cursor.rowcount == 0:
         raise HTTPException(status_code=403, detail="Not authorized or car not found")
@@ -470,15 +471,16 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
     if swipe.action == 'like':
         # Add like
         cursor.execute("""
-            INSERT OR IGNORE INTO likes (user_id, car_id)
-            VALUES (?, ?)
+            INSERT INTO likes (user_id, car_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
         """, (user_id, swipe.car_id))
         
         # Check for match
         cursor.execute("""
             SELECT c.owner_id, c.id as their_car_id
             FROM cars c
-            WHERE c.id = ?
+            WHERE c.id = %s
         """, (swipe.car_id,))
         
         their_car = cursor.fetchone()
@@ -489,7 +491,7 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
                 SELECT l.car_id as my_car_id
                 FROM likes l
                 JOIN cars c ON l.car_id = c.id
-                WHERE l.user_id = ? AND c.owner_id = ?
+                WHERE l.user_id = %s AND c.owner_id = %s
                 LIMIT 1
             """, (their_car['owner_id'], user_id))
             
@@ -500,12 +502,12 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
                 try:
                     cursor.execute("""
                         INSERT INTO matches (user1_id, user2_id, car1_id, car2_id)
-                        VALUES (?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s)
                     """, (min(user_id, their_car['owner_id']), 
                           max(user_id, their_car['owner_id']),
                           my_liked_car['my_car_id'], 
                           their_car['their_car_id']))
-                except sqlite3.IntegrityError:
+                except Exception:
                     pass  # Match already exists
                 
                 db.commit()
@@ -526,8 +528,9 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
     elif swipe.action == 'nope':
         # Add dismissal
         cursor.execute("""
-            INSERT OR IGNORE INTO dismissals (user_id, car_id)
-            VALUES (?, ?)
+            INSERT INTO dismissals (user_id, car_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
         """, (user_id, swipe.car_id))
     
     db.commit()
@@ -556,17 +559,17 @@ async def get_matches(user_id: int = Depends(get_current_user)):
             c.emoji     AS their_emoji,
             (SELECT COUNT(*) FROM messages
              WHERE sender_id   = base.matched_user_id
-               AND receiver_id = ?
+               AND receiver_id = %s
                AND is_read     = 0) AS unread_count,
             base.matched_at
         FROM (
             SELECT
-                CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END AS matched_user_id,
-                CASE WHEN m.user1_id = ? THEN m.car2_id  ELSE m.car1_id  END AS their_car_id,
-                CASE WHEN m.user1_id = ? THEN m.car1_id  ELSE m.car2_id  END AS my_car_id,
+                CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END AS matched_user_id,
+                CASE WHEN m.user1_id = %s THEN m.car2_id  ELSE m.car1_id  END AS their_car_id,
+                CASE WHEN m.user1_id = %s THEN m.car1_id  ELSE m.car2_id  END AS my_car_id,
                 m.created_at AS matched_at
             FROM matches m
-            WHERE ? IN (m.user1_id, m.user2_id)
+            WHERE %s IN (m.user1_id, m.user2_id)
         ) AS base
         JOIN users u ON u.id = base.matched_user_id
         JOIN cars  c ON c.id = base.their_car_id
@@ -589,7 +592,7 @@ async def get_unread_count(user_id: int = Depends(get_current_user)):
     cursor.execute("""
         SELECT COUNT(*) as count
         FROM messages
-        WHERE receiver_id = ? AND is_read = 0
+        WHERE receiver_id = %s AND is_read = 0
     """, (user_id,))
     
     result = cursor.fetchone()
@@ -607,8 +610,8 @@ async def get_messages(other_user_id: int, user_id: int = Depends(get_current_us
         SELECT 
             id, sender_id, receiver_id, content, is_read, created_at
         FROM messages
-        WHERE (sender_id = ? AND receiver_id = ?)
-           OR (sender_id = ? AND receiver_id = ?)
+        WHERE (sender_id = %s AND receiver_id = %s)
+           OR (sender_id = %s AND receiver_id = %s)
         ORDER BY created_at ASC
     """, (user_id, other_user_id, other_user_id, user_id))
     
@@ -618,7 +621,7 @@ async def get_messages(other_user_id: int, user_id: int = Depends(get_current_us
     cursor.execute("""
         UPDATE messages 
         SET is_read = 1 
-        WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+        WHERE sender_id = %s AND receiver_id = %s AND is_read = 0
     """, (other_user_id, user_id))
     
     db.commit()
@@ -635,8 +638,8 @@ async def send_message(message: MessageCreate, user_id: int = Depends(get_curren
     # Verify they're matched
     cursor.execute("""
         SELECT id FROM matches
-        WHERE (user1_id = ? AND user2_id = ?)
-           OR (user1_id = ? AND user2_id = ?)
+        WHERE (user1_id = %s AND user2_id = %s)
+           OR (user1_id = %s AND user2_id = %s)
     """, (min(user_id, message.receiver_id), max(user_id, message.receiver_id),
           min(user_id, message.receiver_id), max(user_id, message.receiver_id)))
     
@@ -645,10 +648,10 @@ async def send_message(message: MessageCreate, user_id: int = Depends(get_curren
     
     cursor.execute("""
         INSERT INTO messages (sender_id, receiver_id, content)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s) RETURNING id
     """, (user_id, message.receiver_id, message.content))
     
-    message_id = cursor.lastrowid
+    message_id = cursor.fetchone()['id']
     db.commit()
     db.close()
     
@@ -665,7 +668,7 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     # Total matches
     cursor.execute("""
         SELECT COUNT(*) as count FROM matches
-        WHERE ? IN (user1_id, user2_id)
+        WHERE %s IN (user1_id, user2_id)
     """, (user_id,))
     matches_count = cursor.fetchone()['count']
     
@@ -677,7 +680,7 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     cursor.execute("""
         SELECT COUNT(*) as count FROM likes l
         JOIN cars c ON l.car_id = c.id
-        WHERE c.owner_id = ?
+        WHERE c.owner_id = %s
     """, (user_id,))
     likes_received = cursor.fetchone()['count']
     
@@ -735,7 +738,7 @@ async def upload_car_photo(
     # Add to database
     cursor.execute("""
         INSERT INTO car_photos (car_id, photo_path, is_primary)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     """, (car_id, str(file_path), is_primary))
     
     db.commit()
@@ -763,8 +766,8 @@ async def upload_profile_photo(
     
     # Update user
     cursor.execute("""
-        UPDATE users SET profile_photo = ?
-        WHERE id = ?
+        UPDATE users SET profile_photo = %s
+        WHERE id = %s
     """, (str(file_path), user_id))
     
     db.commit()
