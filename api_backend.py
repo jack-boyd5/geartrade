@@ -114,104 +114,79 @@ def init_database():
     db = get_db()
     cursor = db.cursor()
     
-    # Users table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        location TEXT,
-        bio TEXT,
-        profile_photo TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    
-    # Sessions table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        session_token TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )''')
-    
-    # Cars table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS cars (
-        id SERIAL PRIMARY KEY,
-        owner_id INTEGER NOT NULL,
-        make TEXT NOT NULL,
-        model TEXT NOT NULL,
-        year INTEGER NOT NULL,
-        price INTEGER NOT NULL,
-        mileage INTEGER,
-        condition TEXT,
-        listing_type TEXT DEFAULT 'both',
-        description TEXT,
-        emoji TEXT DEFAULT '🚗',
-        is_active BOOLEAN DEFAULT TRUE,
-        view_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (owner_id) REFERENCES users(id)
-    )''')
-    
-    # Car photos table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS car_photos (
-        id SERIAL PRIMARY KEY,
-        car_id INTEGER NOT NULL,
-        photo_path TEXT NOT NULL,
-        is_primary BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
-    )''')
-    
-    # Likes table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS likes (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        car_id INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, car_id),
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (car_id) REFERENCES cars(id)
-    )''')
-    
-    # Dismissals table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS dismissals (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        car_id INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, car_id),
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (car_id) REFERENCES cars(id)
-    )''')
-    
-    # Messages table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        sender_id INTEGER NOT NULL,
-        receiver_id INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        is_read BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (sender_id) REFERENCES users(id),
-        FOREIGN KEY (receiver_id) REFERENCES users(id)
-    )''')
-    
-    # Matches table (denormalized for performance)
-    cursor.execute('''CREATE TABLE IF NOT EXISTS matches (
-        id SERIAL PRIMARY KEY,
-        user1_id INTEGER NOT NULL,
-        user2_id INTEGER NOT NULL,
-        car1_id INTEGER NOT NULL,
-        car2_id INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user1_id, user2_id),
-        FOREIGN KEY (user1_id) REFERENCES users(id),
-        FOREIGN KEY (user2_id) REFERENCES users(id),
-        FOREIGN KEY (car1_id) REFERENCES cars(id),
-        FOREIGN KEY (car2_id) REFERENCES cars(id)
-    )''')
+    # Create all tables
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            location TEXT,
+            bio TEXT,
+            profile_photo TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS cars (
+            id SERIAL PRIMARY KEY,
+            owner_id INTEGER NOT NULL REFERENCES users(id),
+            make TEXT NOT NULL,
+            model TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            price INTEGER NOT NULL,
+            mileage INTEGER,
+            condition TEXT,
+            listing_type TEXT DEFAULT 'both',
+            description TEXT,
+            emoji TEXT DEFAULT '🚗',
+            is_active BOOLEAN DEFAULT TRUE,
+            view_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS car_photos (
+            id SERIAL PRIMARY KEY,
+            car_id INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+            photo_path TEXT NOT NULL,
+            is_primary BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS likes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            car_id INTEGER NOT NULL REFERENCES cars(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, car_id)
+        );
+        CREATE TABLE IF NOT EXISTS dismissals (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            car_id INTEGER NOT NULL REFERENCES cars(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, car_id)
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            sender_id INTEGER NOT NULL REFERENCES users(id),
+            receiver_id INTEGER NOT NULL REFERENCES users(id),
+            content TEXT NOT NULL,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS matches (
+            id SERIAL PRIMARY KEY,
+            user1_id INTEGER NOT NULL REFERENCES users(id),
+            user2_id INTEGER NOT NULL REFERENCES users(id),
+            car1_id INTEGER NOT NULL REFERENCES cars(id),
+            car2_id INTEGER NOT NULL REFERENCES cars(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user1_id, user2_id)
+        );
+    ''')
     
     db.commit()
     db.close()
