@@ -114,7 +114,7 @@ def init_database():
     db = get_db()
     cursor = db.cursor()
     
-    # Create all tables
+    # Create all tables - execute separately for PostgreSQL
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -125,13 +125,19 @@ def init_database():
             bio TEXT,
             profile_photo TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS sessions (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id),
             session_token TEXT UNIQUE NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS cars (
             id SERIAL PRIMARY KEY,
             owner_id INTEGER NOT NULL REFERENCES users(id),
@@ -147,28 +153,40 @@ def init_database():
             is_active BOOLEAN DEFAULT TRUE,
             view_count INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS car_photos (
             id SERIAL PRIMARY KEY,
             car_id INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
             photo_path TEXT NOT NULL,
             is_primary BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS likes (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id),
             car_id INTEGER NOT NULL REFERENCES cars(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, car_id)
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS dismissals (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id),
             car_id INTEGER NOT NULL REFERENCES cars(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, car_id)
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY,
             sender_id INTEGER NOT NULL REFERENCES users(id),
@@ -176,7 +194,10 @@ def init_database():
             content TEXT NOT NULL,
             is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        )
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS matches (
             id SERIAL PRIMARY KEY,
             user1_id INTEGER NOT NULL REFERENCES users(id),
@@ -185,7 +206,7 @@ def init_database():
             car2_id INTEGER NOT NULL REFERENCES cars(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user1_id, user2_id)
-        );
+        )
     ''')
     
     db.commit()
