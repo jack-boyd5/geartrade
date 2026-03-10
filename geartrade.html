@@ -1235,6 +1235,16 @@ input::placeholder { color: var(--muted); }
       </select>
     </div>
     <div><div class="field-label">Description</div><input type="text" id="carDesc" placeholder="Tell potential traders about your car…"></div>
+    
+    <div>
+      <div class="field-label">Photos (up to 5)</div>
+      <input type="file" id="carPhotos" accept="image/*" multiple style="display:none">
+      <button class="btn" onclick="document.getElementById('carPhotos').click()" type="button" style="width:100%;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+        📸 Choose Photos
+      </button>
+      <div id="photoPreview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+    </div>
+    
     <button class="btn btn-primary" onclick="submitCar()" style="margin-top:8px">List Car</button>
   </div>
 </div>
@@ -1253,6 +1263,47 @@ let activeChatUserId = null;
 let activeChatUserName = null;
 let activeChatCar = null;
 let prevScreen = 'swipe';
+
+// Photo upload state
+let selectedPhotos = [];
+
+// Handle photo selection and preview
+document.addEventListener('DOMContentLoaded', () => {
+  const photoInput = document.getElementById('carPhotos');
+  if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files).slice(0, 5); // Max 5 photos
+      selectedPhotos = files;
+      
+      const preview = document.getElementById('photoPreview');
+      preview.innerHTML = '';
+      
+      files.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const div = document.createElement('div');
+          div.style.cssText = 'position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--surface2)';
+          div.innerHTML = `
+            <img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">
+            <button onclick="removePhoto(${idx})" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>
+            ${idx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:var(--red);color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px">PRIMARY</div>' : ''}
+          `;
+          preview.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+});
+
+function removePhoto(idx) {
+  selectedPhotos.splice(idx, 1);
+  document.getElementById('carPhotos').value = '';
+  const dataTransfer = new DataTransfer();
+  selectedPhotos.forEach(f => dataTransfer.items.add(f));
+  document.getElementById('carPhotos').files = dataTransfer.files;
+  document.getElementById('carPhotos').dispatchEvent(new Event('change'));
+}
 
 // Demo data
 const DEMO_CARS = [
@@ -2016,13 +2067,42 @@ async function submitCar() {
 
   try {
     if (!isDemo) {
-      await apiCall('/cars', { method: 'POST', body: JSON.stringify({ make, model, year, mileage, price, condition, listing_type, emoji, description }) });
+      // Create car first
+      const carData = await apiCall('/cars', { method: 'POST', body: JSON.stringify({ make, model, year, mileage, price, condition, listing_type, emoji, description }) });
+      const carId = carData.car_id;
+      
+      // Upload photos if any
+      if (selectedPhotos.length > 0) {
+        for (let i = 0; i < selectedPhotos.length; i++) {
+          const formData = new FormData();
+          formData.append('file', selectedPhotos[i]);
+          formData.append('is_primary', i === 0 ? 'true' : 'false');
+          
+          await fetch(`${API}/cars/${carId}/photo`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('gt_token')}` },
+            body: formData
+          });
+        }
+      }
     } else {
       // Add to local demo deck
       deck.unshift({ id: Date.now(), make, model, year, mileage, price, condition, listing_type, emoji, description, owner_username: currentUser.username, owner_location: 'Your City', owner_id: currentUser.id });
     }
+    
+    // Reset form
+    selectedPhotos = [];
+    document.getElementById('carPhotos').value = '';
+    document.getElementById('photoPreview').innerHTML = '';
+    document.getElementById('carMake').value = '';
+    document.getElementById('carModel').value = '';
+    document.getElementById('carYear').value = '';
+    document.getElementById('carMileage').value = '';
+    document.getElementById('carPrice').value = '';
+    document.getElementById('carDesc').value = '';
+    
     closeAddCar();
-    alert('✅ Car listed!');
+    alert('✅ Car listed successfully!');
   } catch (e) {
     alert('Error: ' + e.message);
   }

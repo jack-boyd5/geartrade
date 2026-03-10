@@ -405,7 +405,7 @@ async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get
     cursor = db.cursor()
     
     # Verify ownership
-    cursor.execute("SELECT owner_id FROM cars WHERE id = ?", (car_id,))
+    cursor.execute("SELECT owner_id FROM cars WHERE id = %s", (car_id,))
     car = cursor.fetchone()
     
     if not car or car['owner_id'] != user_id:
@@ -416,7 +416,7 @@ async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get
     values = []
     
     for field, value in updates.dict(exclude_unset=True).items():
-        update_fields.append(f"{field} = ?")
+        update_fields.append(f"{field} = %s")
         values.append(value)
     
     if update_fields:
@@ -451,7 +451,7 @@ async def increment_view(car_id: int, user_id: int = Depends(get_current_user)):
     """Increment view count"""
     db = get_db()
     cursor = db.cursor()
-    cursor.execute("UPDATE cars SET view_count = view_count + 1 WHERE id = ?", (car_id,))
+    cursor.execute("UPDATE cars SET view_count = view_count + 1 WHERE id = %s", (car_id,))
     db.commit()
     db.close()
     return {"success": True}
@@ -712,7 +712,7 @@ async def upload_car_photo(
     cursor = db.cursor()
     
     # Verify ownership
-    cursor.execute("SELECT owner_id FROM cars WHERE id = ?", (car_id,))
+    cursor.execute("SELECT owner_id FROM cars WHERE id = %s", (car_id,))
     car = cursor.fetchone()
     
     if not car or car['owner_id'] != user_id:
@@ -729,13 +729,13 @@ async def upload_car_photo(
     
     # If primary, unset other primary photos
     if is_primary:
-        cursor.execute("UPDATE car_photos SET is_primary = 0 WHERE car_id = ?", (car_id,))
+        cursor.execute("UPDATE car_photos SET is_primary = FALSE WHERE car_id = %s", (car_id,))
     
-    # Add to database
+    # Add to database - store just filename, not full path
     cursor.execute("""
         INSERT INTO car_photos (car_id, photo_path, is_primary)
         VALUES (%s, %s, %s)
-    """, (car_id, str(file_path), is_primary))
+    """, (car_id, f"/uploads/{filename}", is_primary))
     
     db.commit()
     db.close()
