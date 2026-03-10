@@ -240,6 +240,26 @@ input::placeholder { color: var(--muted); }
 .btn:active { transform: scale(0.98); }
 .btn-primary { background: var(--red); color: white; }
 .btn-ghost { background: var(--surface); color: var(--white); border: 1px solid var(--border); }
+
+.filter-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--sans);
+}
+.filter-chip:hover { background: var(--surface2); }
+.filter-chip.active {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+}
+
 .auth-toggle {
   text-align: center;
   font-size: 14px;
@@ -1018,6 +1038,10 @@ input::placeholder { color: var(--muted); }
         <div class="field-label">Password</div>
         <input type="password" id="signupPassword" placeholder="••••••••" autocomplete="new-password">
       </div>
+      <div>
+        <div class="field-label">Location (City, State)</div>
+        <input type="text" id="signupLocation" placeholder="Detroit, MI" autocomplete="address-level2">
+      </div>
       <button class="btn btn-primary" id="signupBtn">Create Account</button>
       <div class="auth-toggle">Already a member? <button onclick="toggleAuth()">Sign in</button></div>
     </div>
@@ -1028,9 +1052,23 @@ input::placeholder { color: var(--muted); }
     <div class="topbar">
       <div class="wordmark">Gear<span>Trade</span></div>
       <div class="topbar-right">
+        <button class="icon-btn" onclick="toggleFilters()" title="Filters" id="filterBtn">⚙️</button>
         <button class="icon-btn" onclick="showAddCar()" title="Add car">＋</button>
       </div>
     </div>
+    
+    <!-- Distance Filter Panel -->
+    <div id="filterPanel" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:16px 22px">
+      <div style="font-weight:600;margin-bottom:12px;font-size:14px">Max Distance</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="filter-chip" onclick="setDistanceFilter(50)">50 mi</button>
+        <button class="filter-chip active" onclick="setDistanceFilter(100)">100 mi</button>
+        <button class="filter-chip" onclick="setDistanceFilter(200)">200 mi</button>
+        <button class="filter-chip" onclick="setDistanceFilter(500)">500 mi</button>
+        <button class="filter-chip" onclick="setDistanceFilter(null)">Any</button>
+      </div>
+    </div>
+    
     <div class="swipe-area">
       <div class="card-counter" id="cardCounter"></div>
       <div class="card-stack" id="cardStack">
@@ -1096,7 +1134,7 @@ input::placeholder { color: var(--muted); }
         <div class="section-title">Account</div>
         <div class="menu-list">
           <div class="menu-item" onclick="showAddCar()"><span class="mi-icon">🚗</span> My Garage<span class="mi-arrow">›</span></div>
-          <div class="menu-item"><span class="mi-icon">✏️</span> Edit Profile<span class="mi-arrow">›</span></div>
+          <div class="menu-item" onclick="showEditProfile()"><span class="mi-icon">✏️</span> Edit Profile<span class="mi-arrow">›</span></div>
           <div class="menu-item"><span class="mi-icon">🔔</span> Notifications<span class="mi-arrow">›</span></div>
           <div class="menu-item"><span class="mi-icon">❓</span> Help & Support<span class="mi-arrow">›</span></div>
         </div>
@@ -1191,7 +1229,7 @@ input::placeholder { color: var(--muted); }
 
       <div class="detail-divider"></div>
       <div class="detail-section-label">Listed by</div>
-      <div class="detail-owner-row" onclick="closeDetail(); openUserProfile(detailCar.owner_username)" style="cursor:pointer">
+      <div class="detail-owner-row" onclick="openUserProfile(detailCar.owner_username)" style="cursor:pointer">
         <div class="detail-owner-avi" id="detailOwnerAvi"></div>
         <div>
           <div class="detail-owner-name" id="detailOwnerName" style="text-decoration:underline;text-decoration-color:rgba(245,242,236,0.3)"></div>
@@ -1288,6 +1326,20 @@ input::placeholder { color: var(--muted); }
   </div>
 </div>
 
+<!-- ═══ EDIT PROFILE MODAL ═══ -->
+<div id="editProfileModal" style="display:none;position:fixed;inset:0;z-index:5000;background:var(--black);overflow-y:auto;max-width:430px;left:50%;transform:translateX(-50%)">
+  <div style="padding:20px 22px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)">
+    <button class="back-btn" onclick="closeEditProfile()">←</button>
+    <div style="font-family:var(--serif);font-size:22px">Edit Profile</div>
+  </div>
+  <div style="padding:24px 22px 60px;display:flex;flex-direction:column;gap:16px">
+    <div><div class="field-label">Username</div><input type="text" id="editUsername" disabled style="opacity:0.5;cursor:not-allowed" placeholder="username"></div>
+    <div><div class="field-label">Location (City, State)</div><input type="text" id="editLocation" placeholder="Detroit, MI"></div>
+    <div><div class="field-label">Bio</div><textarea id="editBio" placeholder="Tell others about yourself and what you're looking for..." style="width:100%;padding:15px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--white);font-size:16px;font-family:var(--sans);outline:none;resize:vertical;min-height:100px"></textarea></div>
+    <button class="btn btn-primary" onclick="submitProfileEdit()" style="margin-top:8px">Save Changes</button>
+  </div>
+</div>
+
 <script>
 // ─────────────────────────────────────────────
 // CONFIG & STATE
@@ -1303,12 +1355,21 @@ let activeChatUserName = null;
 let activeChatCar = null;
 let prevScreen = 'swipe';
 
+// Distance filter
+let maxDistanceFilter = 100; // Default 100 miles
+
 // WebSocket for real-time chat
 let chatWs = null;
 let typingTimeout = null;
 
 function initWebSocket() {
   if (isDemo || !localStorage.getItem('gt_token')) return;
+  
+  // Skip WebSocket if using localhost API (testing locally)
+  if (API.includes('localhost')) {
+    console.log('⚠️ WebSocket disabled for localhost testing');
+    return;
+  }
   
   const token = localStorage.getItem('gt_token');
   const wsUrl = API.replace('https://', 'wss://').replace('http://', 'ws://').replace('/api', '');
@@ -1539,6 +1600,29 @@ function showAuthError(msg) {
   el.classList.add('show');
 }
 
+// Geocode location string to lat/lng using Nominatim (OpenStreetMap)
+async function geocodeLocation(locationString) {
+  if (!locationString) return { latitude: null, longitude: null };
+  
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationString)}&limit=1`, {
+      headers: { 'User-Agent': 'GearTrade/1.0' }
+    });
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon)
+      };
+    }
+  } catch (e) {
+    console.warn('Geocoding failed:', e);
+  }
+  
+  return { latitude: null, longitude: null };
+}
+
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
@@ -1569,17 +1653,33 @@ document.getElementById('signupBtn').addEventListener('click', async () => {
   const username = document.getElementById('signupUsername').value.trim();
   const email = document.getElementById('signupEmail').value.trim();
   const password = document.getElementById('signupPassword').value;
-  if (!username || !email || !password) { showAuthError('Please fill in all fields.'); return; }
+  const location = document.getElementById('signupLocation').value.trim();
+  
+  if (!username || !email || !password) { showAuthError('Please fill in username, email, and password.'); return; }
   if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
 
   document.getElementById('signupBtn').textContent = 'Creating…';
   document.getElementById('signupBtn').disabled = true;
 
   try {
+    let latitude = null, longitude = null;
+    
+    // Geocode location if provided
+    if (location && !isDemo) {
+      document.getElementById('signupBtn').textContent = 'Finding location…';
+      const coords = await geocodeLocation(location);
+      latitude = coords.latitude;
+      longitude = coords.longitude;
+    }
+    
     if (isDemo) {
-      currentUser = { id: 1, username, email, location: '' };
+      currentUser = { id: 1, username, email, location: location || '' };
     } else {
-      const data = await apiCall('/auth/signup', { method: 'POST', body: JSON.stringify({ username, email, password }) });
+      document.getElementById('signupBtn').textContent = 'Creating account…';
+      const data = await apiCall('/auth/signup', { 
+        method: 'POST', 
+        body: JSON.stringify({ username, email, password, location, latitude, longitude }) 
+      });
       localStorage.setItem('gt_token', data.token);
       currentUser = { id: data.user_id, username: data.username };
     }
@@ -1628,12 +1728,37 @@ function goBack() {
 // ─────────────────────────────────────────────
 // SWIPE / DECK
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// FILTERS
+// ─────────────────────────────────────────────
+function toggleFilters() {
+  const panel = document.getElementById('filterPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function setDistanceFilter(miles) {
+  maxDistanceFilter = miles;
+  
+  // Update active state on chips
+  document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // Reload deck with new filter
+  loadDeck();
+}
+
+// ─────────────────────────────────────────────
+// DECK
+// ─────────────────────────────────────────────
 async function loadDeck() {
   try {
     if (isDemo) {
       deck = [...DEMO_CARS];
     } else {
-      const data = await apiCall('/cars/marketplace');
+      const url = maxDistanceFilter 
+        ? `/cars/marketplace?max_distance=${maxDistanceFilter}`
+        : '/cars/marketplace';
+      const data = await apiCall(url);
       deck = data.cars || [];
     }
   } catch {
@@ -1688,6 +1813,9 @@ function buildCard(car, stackPos) {
                : [];
 
   const priceStr = '$' + (car.price || 0).toLocaleString();
+  const distanceBadge = car.distance_miles 
+    ? `<div style="position:absolute;top:16px;left:16px;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:white">${car.distance_miles} mi away</div>`
+    : '';
 
   if (photos.length) {
     const dotsHtml = photos.length > 1
@@ -1697,6 +1825,7 @@ function buildCard(car, stackPos) {
     card.innerHTML = `
       <img class="card-photo" id="cardPhoto_${car.id}" src="${photos[0]}" alt="${car.make} ${car.model}" loading="eager">
       <div class="card-gradient"></div>
+      ${distanceBadge}
       ${dotsHtml}
       <div class="card-tap-hint">Tap for details</div>
       <div class="card-overlay">
@@ -1714,6 +1843,7 @@ function buildCard(car, stackPos) {
     card.innerHTML = `
       <div class="card-emoji-fallback">${car.emoji || '🚗'}</div>
       <div class="card-gradient"></div>
+      ${distanceBadge}
       <div class="card-tap-hint">Tap for details</div>
       <div class="card-overlay">
         <div class="card-overlay-year">${car.year} · ${car.make}</div>
@@ -2184,6 +2314,12 @@ async function loadProfile() {
 // USER PROFILE VIEWING
 // ─────────────────────────────────────────────
 async function openUserProfile(username) {
+  // Close detail page if open
+  const detailScreen = document.getElementById('screen-detail');
+  if (detailScreen.classList.contains('open')) {
+    closeDetail();
+  }
+  
   prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
   
   document.getElementById('profileUsername').textContent = '@' + username;
@@ -2255,7 +2391,6 @@ async function openUserProfile(username) {
 function closeUserProfile() {
   showScreen(prevScreen);
 }
-}
 
 // ─────────────────────────────────────────────
 // ADD CAR
@@ -2265,6 +2400,66 @@ function showAddCar() {
 }
 function closeAddCar() {
   document.getElementById('addCarModal').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+// EDIT PROFILE
+// ─────────────────────────────────────────────
+async function showEditProfile() {
+  document.getElementById('editProfileModal').style.display = 'block';
+  
+  // Load current user data
+  try {
+    const data = await apiCall('/auth/me');
+    document.getElementById('editUsername').value = data.username || '';
+    document.getElementById('editLocation').value = data.location || '';
+    document.getElementById('editBio').value = data.bio || '';
+  } catch (e) {
+    console.error('Failed to load profile:', e);
+  }
+}
+
+function closeEditProfile() {
+  document.getElementById('editProfileModal').style.display = 'none';
+}
+
+async function submitProfileEdit() {
+  const location = document.getElementById('editLocation').value.trim();
+  const bio = document.getElementById('editBio').value.trim();
+  
+  const btn = document.querySelector('#editProfileModal .btn-primary');
+  const originalText = btn.textContent;
+  
+  try {
+    let latitude = null, longitude = null;
+    
+    // Geocode location if changed
+    if (location) {
+      btn.textContent = 'Finding location…';
+      btn.disabled = true;
+      const coords = await geocodeLocation(location);
+      latitude = coords.latitude;
+      longitude = coords.longitude;
+    }
+    
+    btn.textContent = 'Saving…';
+    
+    await apiCall('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ location, latitude, longitude, bio })
+    });
+    
+    closeEditProfile();
+    alert('✅ Profile updated!');
+    
+    // Reload deck with new location filter
+    loadDeck();
+  } catch (e) {
+    alert('Failed to update profile: ' + e.message);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 async function submitCar() {

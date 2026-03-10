@@ -57,11 +57,19 @@ class UserSignup(BaseModel):
     email: EmailStr
     password: str
     location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     bio: Optional[str] = None
 
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class UserUpdate(BaseModel):
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    bio: Optional[str] = None
 
 class CarCreate(BaseModel):
     make: str
@@ -109,6 +117,22 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     return result['user_id']
 
+# Distance calculation (Haversine formula)
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two lat/lng points in miles using Haversine formula"""
+    from math import radians, sin, cos, sqrt, atan2
+    
+    R = 3959  # Earth radius in miles
+    
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    
+    return R * c
+
 # Initialize database
 def init_database():
     db = get_db()
@@ -122,6 +146,8 @@ def init_database():
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             location TEXT,
+            latitude FLOAT,
+            longitude FLOAT,
             bio TEXT,
             profile_photo TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -233,9 +259,9 @@ async def signup(user: UserSignup):
     try:
         password_hash = hash_password(user.password)
         cursor.execute("""
-            INSERT INTO users (username, email, password_hash, location, bio)
-            VALUES (%s, %s, %s, %s, %s) RETURNING id
-        """, (user.username, user.email, password_hash, user.location, user.bio))
+            INSERT INTO users (username, email, password_hash, location, latitude, longitude, bio)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (user.username, user.email, password_hash, user.location, user.latitude, user.longitude, user.bio))
         
         user_id = cursor.fetchone()['id']
         
@@ -319,13 +345,59 @@ async def get_me(user_id: int = Depends(get_current_user)):
     
     return dict(user)
 
+@app.put("/api/auth/me")
+async def update_me(updates: UserUpdate, user_id: int = Depends(get_current_user)):
+    """Update current user's profile"""
+    db = get_db()
+    cursor = db.cursor()
+    
+    # Build update query
+    update_fields = []
+    values = []
+    
+    if updates.location is not None:
+        update_fields.append("location = %s")
+        values.append(updates.location)
+    
+    if updates.latitude is not None:
+        update_fields.append("latitude = %s")
+        values.append(updates.latitude)
+    
+    if updates.longitude is not None:
+        update_fields.append("longitude = %s")
+        values.append(updates.longitude)
+    
+    if updates.bio is not None:
+        update_fields.append("bio = %s")
+        values.append(updates.bio)
+    
+    if update_fields:
+        values.append(user_id)
+        cursor.execute(f"""
+            UPDATE users SET {', '.join(update_fields)}
+            WHERE id = %s
+        """, values)
+        db.commit()
+    
+    db.close()
+    return {"success": True}
+
 # ============== CAR ENDPOINTS ==============
 
 @app.get("/api/cars/marketplace")
-async def get_marketplace(user_id: int = Depends(get_current_user)):
+async def get_marketplace(
+    user_id: int = Depends(get_current_user),
+    max_distance: Optional[int] = None  # Max distance in miles
+):
     """Get cars for swiping - excludes own cars, liked, and dismissed"""
     db = get_db()
     cursor = db.cursor()
+    
+    # Get current user's location
+    cursor.execute("SELECT latitude, longitude FROM users WHERE id = %s", (user_id,))
+    user_location = cursor.fetchone()
+    user_lat = user_location['latitude'] if user_location else None
+    user_lng = user_location['longitude'] if user_location else None
     
     cursor.execute("""
         SELECT 
@@ -333,31 +405,52 @@ async def get_marketplace(user_id: int = Depends(get_current_user)):
             c.condition, c.listing_type, c.description, c.emoji, c.view_count,
             u.username as owner_username,
             u.location as owner_location,
+            u.latitude as owner_latitude,
+            u.longitude as owner_longitude,
             u.id as owner_id,
-            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = 1 LIMIT 1) as primary_photo
+            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = TRUE LIMIT 1) as primary_photo
         FROM cars c
         JOIN users u ON c.owner_id = u.id
-        WHERE c.is_active = 1
+        WHERE c.is_active = TRUE
         AND c.owner_id != %s
         AND c.id NOT IN (SELECT car_id FROM likes WHERE user_id = %s)
         AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = %s)
         ORDER BY c.created_at DESC
-        LIMIT 20
+        LIMIT 100
     """, (user_id, user_id, user_id))
     
     cars = [dict(row) for row in cursor.fetchall()]
 
-    # Attach all photos for each car
+    # Calculate distance and filter
+    filtered_cars = []
     for car in cars:
+        # Calculate distance if both user and owner have coordinates
+        if user_lat and user_lng and car['owner_latitude'] and car['owner_longitude']:
+            distance = calculate_distance(user_lat, user_lng, car['owner_latitude'], car['owner_longitude'])
+            car['distance_miles'] = round(distance)
+            
+            # Apply distance filter
+            if max_distance and distance > max_distance:
+                continue
+        else:
+            car['distance_miles'] = None
+        
+        # Attach all photos
         cursor.execute(
             "SELECT photo_path FROM car_photos WHERE car_id = %s ORDER BY is_primary DESC, id ASC",
             (car['id'],)
         )
         car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
-
+        
+        filtered_cars.append(car)
+    
+    # Sort by distance if available
+    if user_lat and user_lng:
+        filtered_cars.sort(key=lambda x: x['distance_miles'] if x['distance_miles'] is not None else 999999)
+    
     db.close()
     
-    return {"cars": cars}
+    return {"cars": filtered_cars[:20]}
 
 @app.get("/api/cars/my-garage")
 async def get_my_garage(user_id: int = Depends(get_current_user)):
