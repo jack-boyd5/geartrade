@@ -799,6 +799,71 @@ async def get_stats(user_id: int = Depends(get_current_user)):
         "total_views": total_views
     }
 
+# ============== PROFILE ENDPOINTS ==============
+
+@app.get("/api/users/{username}")
+async def get_user_profile(username: str, user_id: int = Depends(get_current_user)):
+    """Get public profile for a user"""
+    db = get_db()
+    cursor = db.cursor()
+    
+    # Get user info
+    cursor.execute("""
+        SELECT id, username, location, bio, created_at
+        FROM users
+        WHERE username = %s
+    """, (username,))
+    
+    user = cursor.fetchone()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    profile_user_id = user['id']
+    
+    # Get their cars
+    cursor.execute("""
+        SELECT 
+            c.id, c.make, c.model, c.year, c.price, c.mileage,
+            c.condition, c.listing_type, c.emoji, c.view_count,
+            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = TRUE LIMIT 1) as primary_photo
+        FROM cars c
+        WHERE c.owner_id = %s AND c.is_active = TRUE
+        ORDER BY c.created_at DESC
+    """, (profile_user_id,))
+    
+    cars = [dict(row) for row in cursor.fetchall()]
+    
+    # Attach all photos for each car
+    for car in cars:
+        cursor.execute(
+            "SELECT photo_path FROM car_photos WHERE car_id = %s ORDER BY is_primary DESC, id ASC",
+            (car['id'],)
+        )
+        car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
+    
+    # Get stats
+    cursor.execute("SELECT COUNT(*) as count FROM matches WHERE %s IN (user1_id, user2_id)", (profile_user_id,))
+    matches_count = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM cars WHERE owner_id = %s AND is_active = TRUE", (profile_user_id,))
+    cars_count = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT SUM(view_count) as total FROM cars WHERE owner_id = %s", (profile_user_id,))
+    total_views = cursor.fetchone()['total'] or 0
+    
+    db.close()
+    
+    return {
+        "user": dict(user),
+        "cars": cars,
+        "stats": {
+            "matches": matches_count,
+            "cars": cars_count,
+            "total_views": total_views
+        }
+    }
+
 # ============== FILE UPLOAD ==============
 
 @app.post("/api/upload/car-photo/{car_id}")

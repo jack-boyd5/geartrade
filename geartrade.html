@@ -1063,7 +1063,7 @@ input::placeholder { color: var(--muted); }
   <div class="screen" id="screen-chat">
     <div class="chat-header">
       <button class="back-btn" onclick="goBack()">←</button>
-      <div class="chat-peer-info">
+      <div class="chat-peer-info" onclick="openUserProfile(activeChatUserName)" style="cursor:pointer">
         <div class="chat-peer-name" id="chatPeerName"></div>
         <div class="chat-peer-car" id="chatPeerCar"></div>
       </div>
@@ -1112,6 +1112,45 @@ input::placeholder { color: var(--muted); }
     </div>
   </div>
 
+  <!-- ═══ USER PROFILE SCREEN ═══ -->
+  <div class="screen" id="screen-user-profile" style="overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div class="topbar">
+      <button class="back-btn" onclick="closeUserProfile()">←</button>
+      <div class="wordmark" id="profileUsername">Profile</div>
+      <div class="topbar-right"></div>
+    </div>
+    
+    <div style="padding:24px 22px 100px">
+      <!-- User Header -->
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="width:96px;height:96px;margin:0 auto 16px;border-radius:50%;background:linear-gradient(135deg,var(--red),#ff8855);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:42px;color:white" id="profileAvatar"></div>
+        <div style="font-family:var(--serif);font-size:28px;margin-bottom:6px" id="profileDisplayName"></div>
+        <div style="color:var(--muted);font-size:15px;margin-bottom:4px" id="profileLocation"></div>
+        <div style="color:rgba(245,242,236,0.65);font-size:14px;line-height:1.6;margin-top:12px" id="profileBio"></div>
+      </div>
+      
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:32px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
+          <div style="font-size:24px;font-weight:700;margin-bottom:4px" id="profileStatMatches">0</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600">Matches</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
+          <div style="font-size:24px;font-weight:700;margin-bottom:4px" id="profileStatCars">0</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600">Cars</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
+          <div style="font-size:24px;font-weight:700;margin-bottom:4px" id="profileStatViews">0</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600">Views</div>
+        </div>
+      </div>
+      
+      <!-- Their Garage -->
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">GARAGE</div>
+      <div id="profileGarage" style="display:grid;grid-template-columns:1fr;gap:12px"></div>
+    </div>
+  </div>
+
   <!-- ═══ BOTTOM NAV ═══ -->
   <nav class="bottomnav" id="bottomNav" style="display:none">
     <button class="nav-item active" id="nav-swipe" onclick="showScreen('swipe')">
@@ -1152,10 +1191,10 @@ input::placeholder { color: var(--muted); }
 
       <div class="detail-divider"></div>
       <div class="detail-section-label">Listed by</div>
-      <div class="detail-owner-row">
+      <div class="detail-owner-row" onclick="closeDetail(); openUserProfile(detailCar.owner_username)" style="cursor:pointer">
         <div class="detail-owner-avi" id="detailOwnerAvi"></div>
         <div>
-          <div class="detail-owner-name" id="detailOwnerName"></div>
+          <div class="detail-owner-name" id="detailOwnerName" style="text-decoration:underline;text-decoration-color:rgba(245,242,236,0.3)"></div>
           <div class="detail-owner-loc" id="detailOwnerLoc"></div>
         </div>
       </div>
@@ -1998,7 +2037,7 @@ async function loadMatches() {
     <div class="match-row ${m.unread_count > 0 ? 'unread' : ''}" onclick="openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}')">
       <div class="match-avi">${m.their_emoji || '🚗'}</div>
       <div class="match-info">
-        <div class="match-name">${m.matched_username}</div>
+        <div class="match-name" onclick="event.stopPropagation(); openUserProfile('${m.matched_username}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(245,242,236,0.3)">${m.matched_username}</div>
         <div class="match-car">${m.their_car}</div>
       </div>
       <div class="match-meta">
@@ -2139,6 +2178,83 @@ async function loadProfile() {
     document.getElementById('statLikes').textContent = stats.likes_received;
     document.getElementById('statCars').textContent = stats.cars;
   } catch {}
+}
+
+// ─────────────────────────────────────────────
+// USER PROFILE VIEWING
+// ─────────────────────────────────────────────
+async function openUserProfile(username) {
+  prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+  
+  document.getElementById('profileUsername').textContent = '@' + username;
+  document.getElementById('profileAvatar').textContent = username[0].toUpperCase();
+  document.getElementById('profileDisplayName').textContent = username;
+  document.getElementById('profileLocation').textContent = '';
+  document.getElementById('profileBio').textContent = '';
+  document.getElementById('profileStatMatches').textContent = '–';
+  document.getElementById('profileStatCars').textContent = '–';
+  document.getElementById('profileStatViews').textContent = '–';
+  document.getElementById('profileGarage').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading...</div>';
+  
+  showScreen('user-profile');
+  
+  try {
+    const data = await apiCall(`/users/${username}`);
+    
+    // Update header
+    document.getElementById('profileDisplayName').textContent = data.user.username;
+    document.getElementById('profileLocation').textContent = data.user.location || '';
+    document.getElementById('profileBio').textContent = data.user.bio || 'No bio yet.';
+    
+    // Update stats
+    document.getElementById('profileStatMatches').textContent = data.stats.matches;
+    document.getElementById('profileStatCars').textContent = data.stats.cars;
+    document.getElementById('profileStatViews').textContent = data.stats.total_views;
+    
+    // Render garage
+    const garage = document.getElementById('profileGarage');
+    
+    if (!data.cars || data.cars.length === 0) {
+      garage.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">No cars listed yet.</div>';
+      return;
+    }
+    
+    garage.innerHTML = '';
+    data.cars.forEach(car => {
+      const photo = (car.photos && car.photos.length) ? car.photos[0] : null;
+      const priceStr = '$' + (car.price || 0).toLocaleString();
+      const mileStr = (car.mileage || 0).toLocaleString() + ' mi';
+      
+      const div = document.createElement('div');
+      div.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;gap:14px;padding:12px;cursor:pointer;transition:transform 0.15s';
+      div.onmousedown = () => div.style.transform = 'scale(0.98)';
+      div.onmouseup = div.onmouseleave = () => div.style.transform = '';
+      div.onclick = () => {
+        // Could open detail view here
+        alert(`${car.year} ${car.make} ${car.model} - ${priceStr}`);
+      };
+      
+      div.innerHTML = `
+        <div style="width:100px;height:100px;border-radius:10px;background:var(--surface2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:48px">
+          ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : car.emoji || '🚗'}
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px">
+          <div style="font-size:13px;color:var(--muted);font-weight:500">${car.year} · ${car.make}</div>
+          <div style="font-family:var(--serif);font-size:20px;line-height:1.1;margin-bottom:4px">${car.model}</div>
+          <div style="font-size:16px;font-weight:700">${priceStr} <span style="font-size:13px;color:var(--muted);font-weight:400">· ${mileStr}</span></div>
+        </div>
+      `;
+      
+      garage.appendChild(div);
+    });
+  } catch (e) {
+    document.getElementById('profileGarage').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load profile.</div>';
+  }
+}
+
+function closeUserProfile() {
+  showScreen(prevScreen);
+}
 }
 
 // ─────────────────────────────────────────────
