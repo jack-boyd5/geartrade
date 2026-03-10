@@ -3,7 +3,7 @@ GearTrade API Backend
 FastAPI server with authentication, car management, matching, and real-time features
 """
 
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -296,7 +296,7 @@ async def login(credentials: UserLogin):
 async def logout(user_id: int = Depends(get_current_user)):
     db = get_db()
     cursor = db.cursor()
-    cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
     db.commit()
     db.close()
     return {"success": True}
@@ -350,7 +350,7 @@ async def get_marketplace(user_id: int = Depends(get_current_user)):
     # Attach all photos for each car
     for car in cars:
         cursor.execute(
-            "SELECT photo_path FROM car_photos WHERE car_id = ? ORDER BY is_primary DESC, id ASC",
+            "SELECT photo_path FROM car_photos WHERE car_id = %s ORDER BY is_primary DESC, id ASC",
             (car['id'],)
         )
         car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
@@ -509,7 +509,7 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
                 db.commit()
                 
                 # Get match details
-                cursor.execute("SELECT username FROM users WHERE id = ?", (their_car['owner_id'],))
+                cursor.execute("SELECT username FROM users WHERE id = %s", (their_car['owner_id'],))
                 other_user = cursor.fetchone()
                 
                 db.close()
@@ -653,6 +653,107 @@ async def send_message(message: MessageCreate, user_id: int = Depends(get_curren
     
     return {"success": True, "message_id": message_id}
 
+# ============== WEBSOCKET CHAT ==============
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[int, WebSocket] = {}
+    
+    async def connect(self, user_id: int, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+    
+    def disconnect(self, user_id: int):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+    
+    async def send_message(self, user_id: int, message: dict):
+        if user_id in self.active_connections:
+            try:
+                await self.active_connections[user_id].send_json(message)
+            except:
+                self.disconnect(user_id)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/chat/{token}")
+async def websocket_chat(websocket: WebSocket, token: str):
+    """WebSocket endpoint for real-time chat"""
+    # Verify token
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("""
+        SELECT user_id FROM sessions 
+        WHERE session_token = %s
+        AND created_at + INTERVAL '7 days' > NOW()
+    """, (token,))
+    result = cursor.fetchone()
+    db.close()
+    
+    if not result:
+        await websocket.close(code=1008)
+        return
+    
+    user_id = result['user_id']
+    await manager.connect(user_id, websocket)
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get('type') == 'message':
+                # Save message to database
+                db = get_db()
+                cursor = db.cursor()
+                cursor.execute("""
+                    INSERT INTO messages (sender_id, receiver_id, content)
+                    VALUES (%s, %s, %s) RETURNING id, created_at
+                """, (user_id, data['receiver_id'], data['content']))
+                msg = cursor.fetchone()
+                db.commit()
+                db.close()
+                
+                # Send to receiver if online
+                await manager.send_message(data['receiver_id'], {
+                    'type': 'message',
+                    'message_id': msg['id'],
+                    'sender_id': user_id,
+                    'content': data['content'],
+                    'created_at': msg['created_at'].isoformat()
+                })
+                
+                # Confirm to sender
+                await websocket.send_json({
+                    'type': 'sent',
+                    'message_id': msg['id'],
+                    'created_at': msg['created_at'].isoformat()
+                })
+            
+            elif data.get('type') == 'typing':
+                # Forward typing indicator
+                await manager.send_message(data['receiver_id'], {
+                    'type': 'typing',
+                    'sender_id': user_id,
+                    'is_typing': data.get('is_typing', True)
+                })
+            
+            elif data.get('type') == 'mark_read':
+                # Mark messages as read
+                db = get_db()
+                cursor = db.cursor()
+                cursor.execute("""
+                    UPDATE messages SET is_read = TRUE
+                    WHERE sender_id = %s AND receiver_id = %s AND is_read = FALSE
+                """, (data['sender_id'], user_id))
+                db.commit()
+                db.close()
+    
+    except WebSocketDisconnect:
+        manager.disconnect(user_id)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        manager.disconnect(user_id)
+
 # ============== STATS ENDPOINTS ==============
 
 @app.get("/api/stats")
@@ -669,7 +770,7 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     matches_count = cursor.fetchone()['count']
     
     # Total likes given
-    cursor.execute("SELECT COUNT(*) as count FROM likes WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT COUNT(*) as count FROM likes WHERE user_id = %s", (user_id,))
     likes_given = cursor.fetchone()['count']
     
     # Total likes received (on my cars)
@@ -681,11 +782,11 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     likes_received = cursor.fetchone()['count']
     
     # Total cars
-    cursor.execute("SELECT COUNT(*) as count FROM cars WHERE owner_id = ? AND is_active = 1", (user_id,))
+    cursor.execute("SELECT COUNT(*) as count FROM cars WHERE owner_id = %s AND is_active = TRUE", (user_id,))
     cars_count = cursor.fetchone()['count']
     
     # Total views on my cars
-    cursor.execute("SELECT SUM(view_count) as total FROM cars WHERE owner_id = ?", (user_id,))
+    cursor.execute("SELECT SUM(view_count) as total FROM cars WHERE owner_id = %s", (user_id,))
     total_views = cursor.fetchone()['total'] or 0
     
     db.close()

@@ -1264,6 +1264,71 @@ let activeChatUserName = null;
 let activeChatCar = null;
 let prevScreen = 'swipe';
 
+// WebSocket for real-time chat
+let chatWs = null;
+let typingTimeout = null;
+
+function initWebSocket() {
+  if (isDemo || !localStorage.getItem('gt_token')) return;
+  
+  const token = localStorage.getItem('gt_token');
+  const wsUrl = API.replace('https://', 'wss://').replace('http://', 'ws://').replace('/api', '');
+  chatWs = new WebSocket(`${wsUrl}/ws/chat/${token}`);
+  
+  chatWs.onopen = () => console.log('💬 WebSocket connected');
+  
+  chatWs.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    
+    if (data.type === 'message') {
+      // Incoming message
+      if (data.sender_id === activeChatUserId) {
+        // Currently viewing this chat - append message
+        const scroll = document.getElementById('messagesScroll');
+        const div = document.createElement('div');
+        div.className = 'msg them fade-up';
+        div.innerHTML = data.content + `<div class="msg-time">${formatTime(data.created_at)}</div>`;
+        scroll.appendChild(div);
+        scroll.scrollTop = scroll.scrollHeight;
+        
+        // Mark as read
+        chatWs.send(JSON.stringify({ type: 'mark_read', sender_id: data.sender_id }));
+      } else {
+        // Message from someone else - update unread count
+        refreshMatches();
+      }
+    } else if (data.type === 'typing') {
+      // Show typing indicator
+      if (data.sender_id === activeChatUserId) {
+        const indicator = document.getElementById('typingIndicator');
+        if (!indicator) {
+          const scroll = document.getElementById('messagesScroll');
+          const div = document.createElement('div');
+          div.id = 'typingIndicator';
+          div.style.cssText = 'padding:12px;color:var(--muted);font-size:13px;font-style:italic';
+          div.textContent = `${activeChatUserName} is typing...`;
+          scroll.appendChild(div);
+        }
+        
+        // Auto-remove after 3s
+        setTimeout(() => {
+          const ind = document.getElementById('typingIndicator');
+          if (ind) ind.remove();
+        }, 3000);
+      }
+    } else if (data.type === 'sent') {
+      // Message sent confirmation - could update UI with server timestamp
+    }
+  };
+  
+  chatWs.onclose = () => {
+    console.log('💬 WebSocket closed, reconnecting in 3s...');
+    setTimeout(initWebSocket, 3000);
+  };
+  
+  chatWs.onerror = (err) => console.error('WebSocket error:', err);
+}
+
 // Photo upload state
 let selectedPhotos = [];
 
@@ -1414,6 +1479,7 @@ function bootApp() {
   setProfile();
   showScreen('swipe');
   loadDeck();
+  initWebSocket(); // Connect WebSocket for real-time chat
 }
 
 // ─────────────────────────────────────────────
@@ -1956,6 +2022,11 @@ function openChat(userId, username, carName) {
 
   showScreen('chat');
   loadMessages();
+  
+  // Mark messages as read
+  if (!isDemo && chatWs && chatWs.readyState === WebSocket.OPEN) {
+    chatWs.send(JSON.stringify({ type: 'mark_read', sender_id: userId }));
+  }
 }
 
 async function loadMessages() {
@@ -2006,11 +2077,39 @@ async function sendMessage() {
   scroll.scrollTop = scroll.scrollHeight;
 
   try {
-    if (!isDemo) {
+    if (!isDemo && chatWs && chatWs.readyState === WebSocket.OPEN) {
+      chatWs.send(JSON.stringify({
+        type: 'message',
+        receiver_id: activeChatUserId,
+        content: text
+      }));
+    } else if (!isDemo) {
+      // Fallback to HTTP if WebSocket not available
       await apiCall('/messages', { method: 'POST', body: JSON.stringify({ receiver_id: activeChatUserId, content: text }) });
     }
   } catch { /* silent */ }
 }
+
+// Typing indicator
+document.getElementById('chatInput').addEventListener('input', () => {
+  if (!chatWs || chatWs.readyState !== WebSocket.OPEN || isDemo) return;
+  
+  clearTimeout(typingTimeout);
+  
+  chatWs.send(JSON.stringify({
+    type: 'typing',
+    receiver_id: activeChatUserId,
+    is_typing: true
+  }));
+  
+  typingTimeout = setTimeout(() => {
+    chatWs.send(JSON.stringify({
+      type: 'typing',
+      receiver_id: activeChatUserId,
+      is_typing: false
+    }));
+  }, 1000);
+});
 
 document.getElementById('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') sendMessage();
