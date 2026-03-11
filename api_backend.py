@@ -1,57 +1,170 @@
 """
-GearTrade API Backend
-FastAPI server with authentication, car management, matching, and real-time features
+GearTrade API - Refactored
+Clean architecture with separated concerns
 """
+import os
+import secrets
+import hashlib
+from pathlib import Path
+from typing import Optional
+from datetime import datetime, timedelta
+from math import radians, sin, cos, sqrt, atan2
 
+import psycopg2
+import psycopg2.extras
 from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
-import psycopg2
-import psycopg2.extras
-import hashlib
-import secrets
-from datetime import datetime, timedelta
-import os
-from pathlib import Path
 
-# Create uploads directory
+# ============== CONFIG ==============
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-app = FastAPI(title="GearTrade API", version="1.0.0")
+app = FastAPI(title="GearTrade API", version="2.0.0")
 
-# CORS middleware for frontend
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve uploaded files
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Security
-security = HTTPBearer()
+# ============== DATABASE ==============
 
-# Database connection
 def get_db():
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL'), cursor_factory=psycopg2.extras.RealDictCursor)
-    conn.autocommit = False
-    return conn
+    """Get database connection with RealDictCursor"""
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL not set")
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
-# Password hashing
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+def init_database():
+    """Initialize database schema"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            location TEXT,
+            latitude FLOAT,
+            longitude FLOAT,
+            bio TEXT,
+            profile_photo TEXT,
+            account_type TEXT DEFAULT 'individual',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Sessions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Cars table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cars (
+            id SERIAL PRIMARY KEY,
+            owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            make TEXT NOT NULL,
+            model TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            price INTEGER NOT NULL,
+            mileage INTEGER DEFAULT 0,
+            condition TEXT DEFAULT 'Good',
+            listing_type TEXT DEFAULT 'both',
+            description TEXT,
+            emoji TEXT DEFAULT '🚗',
+            view_count INTEGER DEFAULT 0,
+            boost_expires_at TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Car photos table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS car_photos (
+            id SERIAL PRIMARY KEY,
+            car_id INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+            photo_path TEXT NOT NULL,
+            is_primary BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Likes table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS likes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            car_id INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, car_id)
+        )
+    ''')
+    
+    # Dismissals table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS dismissals (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            car_id INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, car_id)
+        )
+    ''')
+    
+    # Matches table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS matches (
+            id SERIAL PRIMARY KEY,
+            user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            car1_id INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+            car2_id INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user1_id, user2_id)
+        )
+    ''')
+    
+    # Messages table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
 
-def generate_token() -> str:
-    return secrets.token_hex(32)
+@app.on_event("startup")
+async def startup():
+    init_database()
+    print("✅ Database initialized")
 
-# Pydantic Models
+# ============== MODELS ==============
+
 class UserSignup(BaseModel):
     username: str
     email: EmailStr
@@ -83,29 +196,46 @@ class CarCreate(BaseModel):
     emoji: str = "🚗"
 
 class CarUpdate(BaseModel):
+    make: Optional[str] = None
+    model: Optional[str] = None
+    year: Optional[int] = None
     price: Optional[int] = None
     mileage: Optional[int] = None
     condition: Optional[str] = None
+    listing_type: Optional[str] = None
     description: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class MessageCreate(BaseModel):
-    receiver_id: int
-    content: str
+    emoji: Optional[str] = None
 
 class SwipeAction(BaseModel):
     car_id: int
-    action: str  # 'like' or 'nope'
+    action: str
 
-# Auth dependency
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+class MessageSend(BaseModel):
+    receiver_id: int
+    content: str
+
+# ============== AUTH HELPERS ==============
+
+def hash_password(password: str) -> str:
+    """Hash password with SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def generate_token() -> str:
+    """Generate secure session token"""
+    return secrets.token_hex(32)
+
+async def get_current_user(authorization: str = None) -> int:
+    """Dependency to get current user from session token"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    
     db = get_db()
     cursor = db.cursor()
-    
     cursor.execute("""
         SELECT user_id FROM sessions 
-        WHERE session_token = %s 
+        WHERE session_token = %s
         AND created_at + INTERVAL '7 days' > NOW()
     """, (token,))
     
@@ -117,11 +247,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     return result['user_id']
 
-# Distance calculation (Haversine formula)
+# ============== UTILITIES ==============
+
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate distance between two lat/lng points in miles using Haversine formula"""
-    from math import radians, sin, cos, sqrt, atan2
-    
+    """Calculate distance between two coordinates in miles (Haversine formula)"""
     R = 3959  # Earth radius in miles
     
     lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
@@ -133,126 +262,15 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     
     return R * c
 
-# Initialize database
-def init_database():
-    db = get_db()
-    cursor = db.cursor()
-    
-    # Create all tables - execute separately for PostgreSQL
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            location TEXT,
-            latitude FLOAT,
-            longitude FLOAT,
-            bio TEXT,
-            profile_photo TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sessions (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            session_token TEXT UNIQUE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cars (
-            id SERIAL PRIMARY KEY,
-            owner_id INTEGER NOT NULL REFERENCES users(id),
-            make TEXT NOT NULL,
-            model TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            price INTEGER NOT NULL,
-            mileage INTEGER,
-            condition TEXT,
-            listing_type TEXT DEFAULT 'both',
-            description TEXT,
-            emoji TEXT DEFAULT '🚗',
-            is_active BOOLEAN DEFAULT TRUE,
-            view_count INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS car_photos (
-            id SERIAL PRIMARY KEY,
-            car_id INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
-            photo_path TEXT NOT NULL,
-            is_primary BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS likes (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            car_id INTEGER NOT NULL REFERENCES cars(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, car_id)
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS dismissals (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            car_id INTEGER NOT NULL REFERENCES cars(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, car_id)
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,
-            sender_id INTEGER NOT NULL REFERENCES users(id),
-            receiver_id INTEGER NOT NULL REFERENCES users(id),
-            content TEXT NOT NULL,
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS matches (
-            id SERIAL PRIMARY KEY,
-            user1_id INTEGER NOT NULL REFERENCES users(id),
-            user2_id INTEGER NOT NULL REFERENCES users(id),
-            car1_id INTEGER NOT NULL REFERENCES cars(id),
-            car2_id INTEGER NOT NULL REFERENCES cars(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user1_id, user2_id)
-        )
-    ''')
-    
-    db.commit()
-    db.close()
-
-# API Endpoints
-
-@app.on_event("startup")
-async def startup():
-    init_database()
-    print("✅ Database initialized")
+# ============== AUTH ENDPOINTS ==============
 
 @app.get("/")
 async def root():
-    return {"message": "GearTrade API v1.0", "status": "running"}
-
-# ============== AUTH ENDPOINTS ==============
+    return {"status": "ok", "app": "GearTrade API", "version": "2.0.0"}
 
 @app.post("/api/auth/signup")
 async def signup(user: UserSignup):
+    """Create new user account"""
     db = get_db()
     cursor = db.cursor()
     
@@ -287,6 +305,7 @@ async def signup(user: UserSignup):
 
 @app.post("/api/auth/login")
 async def login(credentials: UserLogin):
+    """Login and create session"""
     db = get_db()
     cursor = db.cursor()
     
@@ -320,6 +339,7 @@ async def login(credentials: UserLogin):
 
 @app.post("/api/auth/logout")
 async def logout(user_id: int = Depends(get_current_user)):
+    """Logout and invalidate session"""
     db = get_db()
     cursor = db.cursor()
     cursor.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
@@ -329,11 +349,12 @@ async def logout(user_id: int = Depends(get_current_user)):
 
 @app.get("/api/auth/me")
 async def get_me(user_id: int = Depends(get_current_user)):
+    """Get current user info"""
     db = get_db()
     cursor = db.cursor()
     
     cursor.execute("""
-        SELECT id, username, email, location, bio, profile_photo, created_at
+        SELECT id, username, email, location, latitude, longitude, bio, profile_photo, account_type, created_at
         FROM users WHERE id = %s
     """, (user_id,))
     
@@ -347,34 +368,33 @@ async def get_me(user_id: int = Depends(get_current_user)):
 
 @app.put("/api/auth/me")
 async def update_me(updates: UserUpdate, user_id: int = Depends(get_current_user)):
-    """Update current user's profile"""
+    """Update current user profile"""
     db = get_db()
     cursor = db.cursor()
     
-    # Build update query
-    update_fields = []
+    fields = []
     values = []
     
     if updates.location is not None:
-        update_fields.append("location = %s")
+        fields.append("location = %s")
         values.append(updates.location)
     
     if updates.latitude is not None:
-        update_fields.append("latitude = %s")
+        fields.append("latitude = %s")
         values.append(updates.latitude)
     
     if updates.longitude is not None:
-        update_fields.append("longitude = %s")
+        fields.append("longitude = %s")
         values.append(updates.longitude)
     
     if updates.bio is not None:
-        update_fields.append("bio = %s")
+        fields.append("bio = %s")
         values.append(updates.bio)
     
-    if update_fields:
+    if fields:
         values.append(user_id)
         cursor.execute(f"""
-            UPDATE users SET {', '.join(update_fields)}
+            UPDATE users SET {', '.join(fields)}
             WHERE id = %s
         """, values)
         db.commit()
@@ -387,66 +407,76 @@ async def update_me(updates: UserUpdate, user_id: int = Depends(get_current_user
 @app.get("/api/cars/marketplace")
 async def get_marketplace(
     user_id: int = Depends(get_current_user),
-    max_distance: Optional[int] = None  # Max distance in miles
+    max_distance: Optional[int] = None
 ):
-    """Get cars for swiping - excludes own cars, liked, and dismissed"""
+    """Get cars for swiping (sorted by boost, then distance)"""
     db = get_db()
     cursor = db.cursor()
     
-    # Get current user's location
+    # Get current user location
     cursor.execute("SELECT latitude, longitude FROM users WHERE id = %s", (user_id,))
     user_location = cursor.fetchone()
     user_lat = user_location['latitude'] if user_location else None
     user_lng = user_location['longitude'] if user_location else None
     
+    # Get cars
     cursor.execute("""
         SELECT 
             c.id, c.make, c.model, c.year, c.price, c.mileage,
             c.condition, c.listing_type, c.description, c.emoji, c.view_count,
+            c.boost_expires_at,
             u.username as owner_username,
             u.location as owner_location,
             u.latitude as owner_latitude,
             u.longitude as owner_longitude,
-            u.id as owner_id,
-            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = TRUE LIMIT 1) as primary_photo
+            u.account_type as owner_account_type,
+            u.id as owner_id
         FROM cars c
         JOIN users u ON c.owner_id = u.id
         WHERE c.is_active = TRUE
         AND c.owner_id != %s
         AND c.id NOT IN (SELECT car_id FROM likes WHERE user_id = %s)
         AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = %s)
-        ORDER BY c.created_at DESC
+        ORDER BY 
+            CASE WHEN c.boost_expires_at > NOW() THEN 0 ELSE 1 END,
+            c.created_at DESC
         LIMIT 100
     """, (user_id, user_id, user_id))
     
     cars = [dict(row) for row in cursor.fetchall()]
-
-    # Calculate distance and filter
+    
+    # Calculate distance, filter, attach photos
     filtered_cars = []
     for car in cars:
-        # Calculate distance if both user and owner have coordinates
+        # Distance calculation
         if user_lat and user_lng and car['owner_latitude'] and car['owner_longitude']:
             distance = calculate_distance(user_lat, user_lng, car['owner_latitude'], car['owner_longitude'])
             car['distance_miles'] = round(distance)
             
-            # Apply distance filter
             if max_distance and distance > max_distance:
                 continue
         else:
             car['distance_miles'] = None
         
-        # Attach all photos
-        cursor.execute(
-            "SELECT photo_path FROM car_photos WHERE car_id = %s ORDER BY is_primary DESC, id ASC",
-            (car['id'],)
-        )
+        # Attach photos
+        cursor.execute("""
+            SELECT photo_path FROM car_photos 
+            WHERE car_id = %s 
+            ORDER BY is_primary DESC, id ASC
+        """, (car['id'],))
         car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
+        
+        # Add dealer badge flag
+        car['is_dealer'] = car['owner_account_type'] == 'dealer'
         
         filtered_cars.append(car)
     
     # Sort by distance if available
     if user_lat and user_lng:
-        filtered_cars.sort(key=lambda x: x['distance_miles'] if x['distance_miles'] is not None else 999999)
+        filtered_cars.sort(key=lambda x: (
+            0 if x.get('boost_expires_at') and x['boost_expires_at'] > datetime.now() else 1,
+            x['distance_miles'] if x['distance_miles'] is not None else 999999
+        ))
     
     db.close()
     
@@ -460,30 +490,38 @@ async def get_my_garage(user_id: int = Depends(get_current_user)):
     
     cursor.execute("""
         SELECT 
-            c.*,
-            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = 1 LIMIT 1) as primary_photo,
-            (SELECT COUNT(*) FROM likes WHERE car_id = c.id) as like_count
-        FROM cars c
-        WHERE c.owner_id = %s AND c.is_active = 1
-        ORDER BY c.created_at DESC
+            id, make, model, year, price, mileage, condition, 
+            listing_type, description, emoji, view_count, boost_expires_at, created_at
+        FROM cars
+        WHERE owner_id = %s AND is_active = TRUE
+        ORDER BY created_at DESC
     """, (user_id,))
     
     cars = [dict(row) for row in cursor.fetchall()]
-    db.close()
     
+    # Attach photos
+    for car in cars:
+        cursor.execute("""
+            SELECT photo_path FROM car_photos 
+            WHERE car_id = %s 
+            ORDER BY is_primary DESC, id ASC
+        """, (car['id'],))
+        car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
+    
+    db.close()
     return {"cars": cars}
 
 @app.post("/api/cars")
 async def create_car(car: CarCreate, user_id: int = Depends(get_current_user)):
-    """Add a new car to garage"""
+    """Create new car listing"""
     db = get_db()
     cursor = db.cursor()
     
     cursor.execute("""
         INSERT INTO cars (owner_id, make, model, year, price, mileage, condition, listing_type, description, emoji)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-    """, (user_id, car.make, car.model, car.year, car.price, car.mileage, 
-          car.condition, car.listing_type, car.description, car.emoji))
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+    """, (user_id, car.make, car.model, car.year, car.price, car.mileage, car.condition, car.listing_type, car.description, car.emoji))
     
     car_id = cursor.fetchone()['id']
     db.commit()
@@ -493,7 +531,7 @@ async def create_car(car: CarCreate, user_id: int = Depends(get_current_user)):
 
 @app.put("/api/cars/{car_id}")
 async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get_current_user)):
-    """Update a car (only owner can update)"""
+    """Update car listing"""
     db = get_db()
     cursor = db.cursor()
     
@@ -505,17 +543,17 @@ async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get
         raise HTTPException(status_code=403, detail="Not authorized")
     
     # Build update query
-    update_fields = []
+    fields = []
     values = []
     
     for field, value in updates.dict(exclude_unset=True).items():
-        update_fields.append(f"{field} = %s")
+        fields.append(f"{field} = %s")
         values.append(value)
     
-    if update_fields:
+    if fields:
         values.append(car_id)
         cursor.execute(f"""
-            UPDATE cars SET {', '.join(update_fields)}
+            UPDATE cars SET {', '.join(fields)}
             WHERE id = %s
         """, values)
         db.commit()
@@ -525,7 +563,7 @@ async def update_car(car_id: int, updates: CarUpdate, user_id: int = Depends(get
 
 @app.delete("/api/cars/{car_id}")
 async def delete_car(car_id: int, user_id: int = Depends(get_current_user)):
-    """Soft delete a car"""
+    """Soft delete car listing"""
     db = get_db()
     cursor = db.cursor()
     
@@ -549,11 +587,53 @@ async def increment_view(car_id: int, user_id: int = Depends(get_current_user)):
     db.close()
     return {"success": True}
 
+@app.post("/api/upload/car-photo/{car_id}")
+async def upload_car_photo(
+    car_id: int,
+    file: UploadFile = File(...),
+    is_primary: bool = False,
+    user_id: int = Depends(get_current_user)
+):
+    """Upload car photo"""
+    db = get_db()
+    cursor = db.cursor()
+    
+    # Verify ownership
+    cursor.execute("SELECT owner_id FROM cars WHERE id = %s", (car_id,))
+    car = cursor.fetchone()
+    
+    if not car or car['owner_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Save file
+    file_ext = file.filename.split('.')[-1]
+    filename = f"car_{car_id}_{secrets.token_hex(8)}.{file_ext}"
+    file_path = UPLOAD_DIR / filename
+    
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+    
+    # Unset other primary photos if this is primary
+    if is_primary:
+        cursor.execute("UPDATE car_photos SET is_primary = FALSE WHERE car_id = %s", (car_id,))
+    
+    # Add to database
+    cursor.execute("""
+        INSERT INTO car_photos (car_id, photo_path, is_primary)
+        VALUES (%s, %s, %s)
+    """, (car_id, f"/uploads/{filename}", is_primary))
+    
+    db.commit()
+    db.close()
+    
+    return {"success": True, "photo_path": f"/uploads/{filename}"}
+
 # ============== SWIPE ENDPOINTS ==============
 
 @app.post("/api/swipe")
 async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
-    """Handle swipe action (like or nope)"""
+    """Handle swipe (like or nope)"""
     db = get_db()
     cursor = db.cursor()
     
@@ -592,9 +672,9 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
                     cursor.execute("""
                         INSERT INTO matches (user1_id, user2_id, car1_id, car2_id)
                         VALUES (%s, %s, %s, %s)
-                    """, (min(user_id, their_car['owner_id']), 
+                    """, (min(user_id, their_car['owner_id']),
                           max(user_id, their_car['owner_id']),
-                          my_liked_car['my_car_id'], 
+                          my_liked_car['my_car_id'],
                           their_car['their_car_id']))
                 except Exception:
                     pass  # Match already exists
@@ -634,40 +714,44 @@ async def get_matches(user_id: int = Depends(get_current_user)):
     """Get all matches for current user"""
     db = get_db()
     cursor = db.cursor()
-
-    # Subquery resolves the CASE aliases first so the correlated
-    # unread subquery can reference matched_user_id without error.
+    
     cursor.execute("""
         SELECT
             base.matched_user_id,
             base.their_car_id,
             base.my_car_id,
-            u.username  AS matched_username,
-            u.location  AS matched_location,
+            u.username AS matched_username,
+            u.location AS matched_location,
+            u.account_type,
             c.make || ' ' || c.model AS their_car,
-            c.emoji     AS their_emoji,
+            c.emoji AS their_emoji,
             (SELECT COUNT(*) FROM messages
-             WHERE sender_id   = base.matched_user_id
+             WHERE sender_id = base.matched_user_id
                AND receiver_id = %s
-               AND is_read     = 0) AS unread_count,
+               AND is_read = FALSE) AS unread_count,
             base.matched_at
         FROM (
             SELECT
                 CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END AS matched_user_id,
-                CASE WHEN m.user1_id = %s THEN m.car2_id  ELSE m.car1_id  END AS their_car_id,
-                CASE WHEN m.user1_id = %s THEN m.car1_id  ELSE m.car2_id  END AS my_car_id,
+                CASE WHEN m.user1_id = %s THEN m.car2_id ELSE m.car1_id END AS their_car_id,
+                CASE WHEN m.user1_id = %s THEN m.car1_id ELSE m.car2_id END AS my_car_id,
                 m.created_at AS matched_at
             FROM matches m
             WHERE %s IN (m.user1_id, m.user2_id)
         ) AS base
         JOIN users u ON u.id = base.matched_user_id
-        JOIN cars  c ON c.id = base.their_car_id
+        JOIN cars c ON c.id = base.their_car_id
         ORDER BY base.matched_at DESC
     """, (user_id, user_id, user_id, user_id, user_id))
-
+    
     matches = [dict(row) for row in cursor.fetchall()]
+    
+    # Add dealer badge flag
+    for match in matches:
+        match['is_dealer'] = match['account_type'] == 'dealer'
+    
     db.close()
-
+    
     return {"matches": matches}
 
 # ============== MESSAGE ENDPOINTS ==============
@@ -681,7 +765,7 @@ async def get_unread_count(user_id: int = Depends(get_current_user)):
     cursor.execute("""
         SELECT COUNT(*) as count
         FROM messages
-        WHERE receiver_id = %s AND is_read = 0
+        WHERE receiver_id = %s AND is_read = FALSE
     """, (user_id,))
     
     result = cursor.fetchone()
@@ -705,32 +789,21 @@ async def get_messages(other_user_id: int, user_id: int = Depends(get_current_us
     """, (user_id, other_user_id, other_user_id, user_id))
     
     messages = [dict(row) for row in cursor.fetchall()]
-    
-    # Mark messages as read
-    cursor.execute("""
-        UPDATE messages 
-        SET is_read = 1 
-        WHERE sender_id = %s AND receiver_id = %s AND is_read = 0
-    """, (other_user_id, user_id))
-    
-    db.commit()
     db.close()
     
     return {"messages": messages}
 
 @app.post("/api/messages")
-async def send_message(message: MessageCreate, user_id: int = Depends(get_current_user)):
-    """Send a message to another user"""
+async def send_message(message: MessageSend, user_id: int = Depends(get_current_user)):
+    """Send a message"""
     db = get_db()
     cursor = db.cursor()
     
     # Verify they're matched
     cursor.execute("""
         SELECT id FROM matches
-        WHERE (user1_id = %s AND user2_id = %s)
-           OR (user1_id = %s AND user2_id = %s)
-    """, (min(user_id, message.receiver_id), max(user_id, message.receiver_id),
-          min(user_id, message.receiver_id), max(user_id, message.receiver_id)))
+        WHERE (%s IN (user1_id, user2_id)) AND (%s IN (user1_id, user2_id))
+    """, (user_id, message.receiver_id))
     
     if not cursor.fetchone():
         raise HTTPException(status_code=403, detail="Not matched with this user")
@@ -795,7 +868,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
             data = await websocket.receive_json()
             
             if data.get('type') == 'message':
-                # Save message to database
+                # Save message
                 db = get_db()
                 cursor = db.cursor()
                 cursor.execute("""
@@ -806,7 +879,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
                 db.commit()
                 db.close()
                 
-                # Send to receiver if online
+                # Send to receiver
                 await manager.send_message(data['receiver_id'], {
                     'type': 'message',
                     'message_id': msg['id'],
@@ -866,7 +939,7 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     cursor.execute("SELECT COUNT(*) as count FROM likes WHERE user_id = %s", (user_id,))
     likes_given = cursor.fetchone()['count']
     
-    # Total likes received (on my cars)
+    # Total likes received
     cursor.execute("""
         SELECT COUNT(*) as count FROM likes l
         JOIN cars c ON l.car_id = c.id
@@ -878,7 +951,7 @@ async def get_stats(user_id: int = Depends(get_current_user)):
     cursor.execute("SELECT COUNT(*) as count FROM cars WHERE owner_id = %s AND is_active = TRUE", (user_id,))
     cars_count = cursor.fetchone()['count']
     
-    # Total views on my cars
+    # Total views
     cursor.execute("SELECT SUM(view_count) as total FROM cars WHERE owner_id = %s", (user_id,))
     total_views = cursor.fetchone()['total'] or 0
     
@@ -900,9 +973,9 @@ async def get_user_profile(username: str, user_id: int = Depends(get_current_use
     db = get_db()
     cursor = db.cursor()
     
-    # Get user info
+    # Get user
     cursor.execute("""
-        SELECT id, username, location, bio, created_at
+        SELECT id, username, location, bio, account_type, created_at
         FROM users
         WHERE username = %s
     """, (username,))
@@ -918,8 +991,7 @@ async def get_user_profile(username: str, user_id: int = Depends(get_current_use
     cursor.execute("""
         SELECT 
             c.id, c.make, c.model, c.year, c.price, c.mileage,
-            c.condition, c.listing_type, c.emoji, c.view_count,
-            (SELECT photo_path FROM car_photos WHERE car_id = c.id AND is_primary = TRUE LIMIT 1) as primary_photo
+            c.condition, c.listing_type, c.emoji, c.view_count
         FROM cars c
         WHERE c.owner_id = %s AND c.is_active = TRUE
         ORDER BY c.created_at DESC
@@ -927,12 +999,13 @@ async def get_user_profile(username: str, user_id: int = Depends(get_current_use
     
     cars = [dict(row) for row in cursor.fetchall()]
     
-    # Attach all photos for each car
+    # Attach photos
     for car in cars:
-        cursor.execute(
-            "SELECT photo_path FROM car_photos WHERE car_id = %s ORDER BY is_primary DESC, id ASC",
-            (car['id'],)
-        )
+        cursor.execute("""
+            SELECT photo_path FROM car_photos 
+            WHERE car_id = %s 
+            ORDER BY is_primary DESC, id ASC
+        """, (car['id'],))
         car['photos'] = [r['photo_path'] for r in cursor.fetchall()]
     
     # Get stats
@@ -947,8 +1020,11 @@ async def get_user_profile(username: str, user_id: int = Depends(get_current_use
     
     db.close()
     
+    user_dict = dict(user)
+    user_dict['is_dealer'] = user_dict['account_type'] == 'dealer'
+    
     return {
-        "user": dict(user),
+        "user": user_dict,
         "cars": cars,
         "stats": {
             "matches": matches_count,
@@ -957,78 +1033,7 @@ async def get_user_profile(username: str, user_id: int = Depends(get_current_use
         }
     }
 
-# ============== FILE UPLOAD ==============
-
-@app.post("/api/upload/car-photo/{car_id}")
-async def upload_car_photo(
-    car_id: int, 
-    file: UploadFile = File(...),
-    is_primary: bool = False,
-    user_id: int = Depends(get_current_user)
-):
-    """Upload a car photo"""
-    db = get_db()
-    cursor = db.cursor()
-    
-    # Verify ownership
-    cursor.execute("SELECT owner_id FROM cars WHERE id = %s", (car_id,))
-    car = cursor.fetchone()
-    
-    if not car or car['owner_id'] != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Save file
-    file_ext = file.filename.split('.')[-1]
-    filename = f"car_{car_id}_{secrets.token_hex(8)}.{file_ext}"
-    file_path = UPLOAD_DIR / filename
-    
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    
-    # If primary, unset other primary photos
-    if is_primary:
-        cursor.execute("UPDATE car_photos SET is_primary = FALSE WHERE car_id = %s", (car_id,))
-    
-    # Add to database - store just filename, not full path
-    cursor.execute("""
-        INSERT INTO car_photos (car_id, photo_path, is_primary)
-        VALUES (%s, %s, %s)
-    """, (car_id, f"/uploads/{filename}", is_primary))
-    
-    db.commit()
-    db.close()
-    
-    return {"success": True, "photo_path": f"/uploads/{filename}"}
-
-@app.post("/api/upload/profile-photo")
-async def upload_profile_photo(
-    file: UploadFile = File(...),
-    user_id: int = Depends(get_current_user)
-):
-    """Upload profile photo"""
-    db = get_db()
-    cursor = db.cursor()
-    
-    # Save file
-    file_ext = file.filename.split('.')[-1]
-    filename = f"profile_{user_id}_{secrets.token_hex(8)}.{file_ext}"
-    file_path = UPLOAD_DIR / filename
-    
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    
-    # Update user
-    cursor.execute("""
-        UPDATE users SET profile_photo = %s
-        WHERE id = %s
-    """, (str(file_path), user_id))
-    
-    db.commit()
-    db.close()
-    
-    return {"success": True, "photo_path": f"/uploads/{filename}"}
+# ============== RUN ==============
 
 if __name__ == "__main__":
     import uvicorn
