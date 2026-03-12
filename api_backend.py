@@ -12,7 +12,7 @@ from math import radians, sin, cos, sqrt, atan2
 
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
@@ -224,7 +224,7 @@ def generate_token() -> str:
     """Generate secure session token"""
     return secrets.token_hex(32)
 
-async def get_current_user(authorization: str = None) -> int:
+async def get_current_user(authorization: str = Header(None)) -> int:
     """Dependency to get current user from session token"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
