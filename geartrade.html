@@ -2314,13 +2314,16 @@ async function loadProfile() {
 // USER PROFILE VIEWING
 // ─────────────────────────────────────────────
 async function openUserProfile(username) {
+  // Capture previous screen BEFORE closing detail
+  prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+  
   // Close detail page if open
   const detailScreen = document.getElementById('screen-detail');
   if (detailScreen.classList.contains('open')) {
     closeDetail();
+    // If we just closed detail, the actual previous screen is what was under it
+    prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
   }
-  
-  prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
   
   document.getElementById('profileUsername').textContent = '@' + username;
   document.getElementById('profileAvatar').textContent = username[0].toUpperCase();
