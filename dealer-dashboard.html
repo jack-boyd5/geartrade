@@ -1,0 +1,2381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GearTrade Dealer Dashboard</title>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #ffffff;
+  --text-muted: #888888;
+  --accent: #ff6b35;
+  --accent-dim: #ff6b3520;
+  --success: #00d084;
+  --warning: #ffb800;
+  
+  --font-display: 'Archivo', -apple-system, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ═══ TOPBAR ═══ */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.user-menu:hover {
+  background: var(--surface2);
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 72px;
+  right: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: none;
+  z-index: 200;
+}
+
+.user-dropdown.show {
+  display: block;
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--border);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--surface2);
+}
+
+.dropdown-item.danger {
+  color: #ff6b6b;
+}
+
+.dropdown-item.danger:hover {
+  background: #ff000020;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #ff5722;
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  background: var(--surface2);
+}
+
+/* ═══ CONTAINER ═══ */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 32px;
+}
+
+/* ═══ STATS GRID ═══ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stat-change {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.stat-change.negative {
+  color: var(--warning);
+}
+
+/* ═══ SECTION ═══ */
+.section {
+  margin-bottom: 48px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ═══ INVENTORY TABLE ═══ */
+.table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background: var(--surface2);
+}
+
+th {
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+
+tbody tr:hover {
+  background: var(--surface2);
+}
+
+tbody tr:last-child {
+  border-bottom: none;
+}
+
+td {
+  padding: 20px;
+}
+
+.car-cell {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.car-thumb {
+  width: 80px;
+  height: 60px;
+  border-radius: 8px;
+  background: var(--surface2);
+  object-fit: cover;
+}
+
+.car-info {
+  flex: 1;
+}
+
+.car-name {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.car-details {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.badge-boosted {
+  background: #ffb80020;
+  color: var(--warning);
+}
+
+.metric {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.icon-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ═══ EMPTY STATE ═══ */
+.empty-state {
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 80px 40px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.empty-text {
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+/* ═══ UPLOAD MODAL ═══ */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 24px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 32px;
+}
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 24px;
+}
+
+.upload-zone:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.upload-zone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.upload-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.upload-text {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.upload-subtext {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.template-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+
+.template-link:hover {
+  opacity: 0.8;
+}
+
+/* ═══ AUTH SCREEN ═══ */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.auth-container {
+  max-width: 440px;
+  width: 100%;
+}
+
+.auth-logo {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.auth-logo span {
+  color: var(--accent);
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+}
+
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--font-body);
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.auth-error {
+  background: #ff000020;
+  border: 1px solid #ff0000;
+  color: #ff6b6b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  display: none;
+}
+
+.auth-error.show {
+  display: block;
+}
+
+.btn-full {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+}
+
+.screen {
+  display: none;
+}
+
+.screen.active {
+  display: block;
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 16px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .messages-layout {
+    flex-direction: column;
+  }
+  
+  .conversations-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 300px;
+  }
+}
+
+/* ═══ MESSAGES LAYOUT ═══ */
+.messages-layout {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  height: 600px;
+}
+
+.conversations-panel {
+  width: 350px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.conversation-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.conversation-item:hover {
+  background: var(--surface2);
+}
+
+.conversation-item.active {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+}
+
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.conversation-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.conversation-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.conversation-preview {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-unread {
+  background: var(--accent);
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.chat-user-info {
+  flex: 1;
+}
+
+.chat-user-name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.chat-user-car {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  max-width: 70%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.message.sent {
+  background: var(--accent);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+
+.message.received {
+  background: var(--surface2);
+  border-bottom-left-radius: 4px;
+}
+
+.message-time {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.chat-input-bar {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font-body);
+  resize: none;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.send-btn:hover {
+  background: #ff5722;
+  transform: scale(1.05);
+}
+
+/* ═══ SETTINGS CARD ═══ */
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+}
+
+.settings-section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* ═══ MARKETPLACE GRID ═══ */
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.car-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.car-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.car-card-image {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+}
+
+.car-card-content {
+  padding: 20px;
+}
+
+.car-card-year {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.car-card-name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.car-card-details {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.car-card-price {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  margin-bottom: 16px;
+}
+
+.car-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.car-card-actions .btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.distance-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+
+/* ═══ MATCHES GRID ═══ */
+.matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.match-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.match-card:hover {
+  background: var(--surface2);
+  border-color: var(--accent);
+}
+
+.match-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.match-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.match-name {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.match-car {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+
+</style>
+</head>
+<body>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div class="screen active" id="screen-auth">
+  <div class="auth-screen">
+    <div class="auth-container">
+      <div class="auth-logo">Gear<span>Trade</span></div>
+      <div class="auth-card">
+        <h1 class="auth-title">Dealer Dashboard</h1>
+        <p class="auth-subtitle">Sign in to manage your inventory</p>
+        
+        <div class="auth-error" id="authError"></div>
+        
+        <form id="loginForm" onsubmit="return false;">
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-input" id="loginUsername" placeholder="Enter your username" autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-input" id="loginPassword" placeholder="Enter your password" autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DASHBOARD SCREEN ═══ -->
+<div class="screen" id="screen-dashboard">
+  <div class="topbar">
+    <div class="logo">Gear<span>Trade</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
+      <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
+      <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
+      <div class="user-menu" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="userAvatar">D</div>
+        <span id="userName">Dealer</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- User dropdown menu -->
+  <div class="user-dropdown" id="userDropdown">
+    <div class="dropdown-item" onclick="showScreen('dashboard'); closeUserMenu()">📊 Dashboard</div>
+    <div class="dropdown-item" onclick="showScreen('edit-profile'); closeUserMenu()">⚙️ Settings</div>
+    <div class="dropdown-item danger" onclick="signOut()">🚪 Sign Out</div>
+  </div>
+
+  <div class="container">
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Listings</div>
+        <div class="stat-value" id="statCars">0</div>
+        <div class="stat-change">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Views</div>
+        <div class="stat-value" id="statViews">0</div>
+        <div class="stat-change">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Likes</div>
+        <div class="stat-value" id="statLikes">0</div>
+        <div class="stat-change">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Matches</div>
+        <div class="stat-value" id="statMatches">0</div>
+        <div class="stat-change">—</div>
+      </div>
+    </div>
+
+    <!-- Inventory Section -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Your Inventory</h2>
+        <div class="section-actions">
+          <button class="btn btn-ghost" onclick="showUploadModal()">📤 Bulk Upload CSV</button>
+          <button class="btn btn-primary" onclick="showAddCarModal()">+ Add Single Car</button>
+        </div>
+      </div>
+
+      <div id="inventoryContainer">
+        <!-- Will be populated by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CSV UPLOAD MODAL ═══ -->
+<div class="modal" id="uploadModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">Bulk Upload Inventory</h3>
+      <button class="modal-close" onclick="closeUploadModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvFileInput').click()">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">Drop CSV file here or click to browse</div>
+        <div class="upload-subtext">Maximum file size: 5MB</div>
+      </div>
+      <input type="file" id="csvFileInput" accept=".csv" style="display:none">
+      
+      <div style="text-align:center;margin-top:16px">
+        <a href="#" class="template-link" onclick="downloadTemplate(); return false;">
+          ⬇ Download CSV Template
+        </a>
+      </div>
+
+      <div id="uploadPreview" style="display:none;margin-top:24px">
+        <h4 style="margin-bottom:12px;font-weight:600">Preview (first 5 rows)</h4>
+        <div id="previewTable"></div>
+        <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="confirmUpload()">Import Cars</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MARKETPLACE SCREEN ═══ -->
+<div class="screen" id="screen-marketplace">
+  <div class="topbar">
+    <div class="logo">Gear<span>Trade</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
+      <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
+      <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
+      <div class="user-menu" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="userAvatar4">D</div>
+        <span id="userName4">Dealer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Browse Marketplace</h2>
+        <div class="section-actions">
+          <label style="display:flex;align-items:center;gap:8px;margin-right:16px;cursor:pointer">
+            <input type="checkbox" id="showRejectedToggle" onchange="toggleShowRejected(this.checked)" style="width:18px;height:18px;cursor:pointer">
+            <span style="font-size:14px;color:var(--text-muted)">Show rejected cars</span>
+          </label>
+          <select class="form-input" style="width:auto" onchange="updateDistanceFilter(this.value)">
+            <option value="">Any distance</option>
+            <option value="50">Within 50 mi</option>
+            <option value="100" selected>Within 100 mi</option>
+            <option value="200">Within 200 mi</option>
+            <option value="500">Within 500 mi</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="marketplace-grid" id="marketplaceGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MATCHES SCREEN ═══ -->
+<div class="screen" id="screen-matches">
+  <div class="topbar">
+    <div class="logo">Gear<span>Trade</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
+      <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
+      <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
+      <div class="user-menu" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="userAvatar5">D</div>
+        <span id="userName5">Dealer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Your Matches</h2>
+      </div>
+
+      <div class="matches-grid" id="matchesGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MESSAGES SCREEN ═══ -->
+<div class="screen" id="screen-messages">
+  <div class="topbar">
+    <div class="logo">Gear<span>Trade</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">← Dashboard</button>
+      <div class="user-menu" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="userAvatar2">D</div>
+        <span id="userName2">Dealer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Messages</h2>
+      </div>
+
+      <div class="messages-layout">
+        <!-- Conversations list -->
+        <div class="conversations-panel">
+          <div id="conversationsList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Active chat -->
+        <div class="chat-panel">
+          <div id="chatArea">
+            <div class="empty-state" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div class="empty-icon">💬</div>
+              <div class="empty-title">Select a conversation</div>
+              <div class="empty-text">Choose a buyer from the left to view messages</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EDIT PROFILE SCREEN ═══ -->
+<div class="screen" id="screen-edit-profile">
+  <div class="topbar">
+    <div class="logo">Gear<span>Trade</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">← Dashboard</button>
+      <div class="user-menu" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="userAvatar3">D</div>
+        <span id="userName3">Dealer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section" style="max-width:700px;margin:0 auto">
+      <div class="section-header">
+        <h2 class="section-title">Settings</h2>
+      </div>
+
+      <div class="settings-card">
+        <h3 class="settings-section-title">Profile Information</h3>
+        
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-input" id="editUsername" disabled>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" id="editEmail" disabled>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Business Location</label>
+          <input type="text" class="form-input" id="editLocation" placeholder="Detroit, MI">
+          <div class="form-hint">This helps buyers find dealers near them</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">About Your Dealership</label>
+          <textarea class="form-input" id="editBio" rows="4" placeholder="Tell buyers about your dealership, specialties, and what makes you different..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:32px">
+          <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+          <button class="btn btn-ghost" onclick="showScreen('dashboard')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EDIT CAR MODAL ═══ -->
+<div class="modal" id="editCarModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Car Listing</h3>
+      <button class="modal-close" onclick="closeEditCarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Make</label>
+        <input type="text" class="form-input" id="editCarMake">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Model</label>
+        <input type="text" class="form-input" id="editCarModel">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Year</label>
+          <input type="number" class="form-input" id="editCarYear" min="1900" max="2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mileage</label>
+          <input type="number" class="form-input" id="editCarMileage" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Price ($)</label>
+        <input type="number" class="form-input" id="editCarPrice" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Condition</label>
+        <select class="form-input" id="editCarCondition">
+          <option value="Excellent">Excellent</option>
+          <option value="Good">Good</option>
+          <option value="Fair">Fair</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Listing Type</label>
+        <select class="form-input" id="editCarListingType">
+          <option value="both">Trade or Sell</option>
+          <option value="trade">Trade Only</option>
+          <option value="sale">Sale Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-input" id="editCarDescription" rows="3"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px">
+        <button class="btn btn-primary" onclick="saveCarEdit()">Save Changes</button>
+        <button class="btn btn-ghost" onclick="closeEditCarModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CAR DETAIL MODAL ═══ -->
+<div class="modal" id="carDetailModal">
+  <div class="modal-content" style="max-width:900px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="detailTitle">Car Details</h3>
+      <button class="modal-close" onclick="closeCarDetail()">×</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <!-- Photo Gallery -->
+      <div id="detailPhotos" style="position:relative;background:var(--bg);min-height:400px"></div>
+      
+      <!-- Car Info -->
+      <div style="padding:32px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:32px">
+          <!-- Left Column -->
+          <div>
+            <div style="font-size:13px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px" id="detailYearMake">
+            </div>
+            <h2 style="font-family:var(--font-display);font-size:32px;font-weight:700;margin-bottom:16px" id="detailName"></h2>
+            <div style="font-size:28px;font-weight:800;font-family:var(--font-display);color:var(--accent);margin-bottom:24px" id="detailPrice"></div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+              <div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Mileage</div>
+                <div style="font-weight:600" id="detailMileage"></div>
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Condition</div>
+                <div style="font-weight:600" id="detailCondition"></div>
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Listing Type</div>
+                <div style="font-weight:600" id="detailListingType"></div>
+              </div>
+              <div id="detailDistanceContainer" style="display:none">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Distance</div>
+                <div style="font-weight:600" id="detailDistance"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Right Column - Owner -->
+          <div>
+            <div style="font-size:13px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:16px">
+              Listed By
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s" id="ownerCard" onclick="event.stopPropagation(); viewOwnerProfileByUsername(this.dataset.username)">
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+                <div style="width:56px;height:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px" id="detailOwnerAvatar"></div>
+                <div style="flex:1">
+                  <div style="font-weight:700;font-size:16px;margin-bottom:4px" id="detailOwnerName"></div>
+                  <div style="font-size:13px;color:var(--text-muted)" id="detailOwnerLocation"></div>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--text-muted);padding-top:12px;border-top:1px solid var(--border)">
+                Click to view profile →
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Description -->
+        <div>
+          <div style="font-size:13px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">
+            About This Car
+          </div>
+          <div style="line-height:1.6;color:var(--text)" id="detailDescription"></div>
+        </div>
+        
+        <!-- Actions -->
+        <div style="display:flex;gap:12px;margin-top:32px;padding-top:32px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost" style="flex:1" onclick="closeCarDetail(); passCar(detailCarId)">Pass</button>
+          <button class="btn btn-primary" style="flex:1" onclick="closeCarDetail(); likeCar(detailCarId)">Like</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ USER PROFILE MODAL ═══ -->
+<div class="modal" id="userProfileModal">
+  <div class="modal-content" style="max-width:800px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="profileModalTitle">Profile</h3>
+      <button class="modal-close" onclick="closeUserProfile()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Profile Header -->
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:96px;height:96px;margin:0 auto 16px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#ff8855);display:flex;align-items:center;justify-content:center;font-size:42px;color:white" id="profileModalAvatar"></div>
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:700;margin-bottom:6px" id="profileModalName"></div>
+        <div style="color:var(--text-muted);font-size:15px" id="profileModalLocation"></div>
+        <div style="color:rgba(245,242,236,0.65);font-size:14px;line-height:1.6;margin-top:12px" id="profileModalBio"></div>
+      </div>
+      
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px">
+        <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:24px;font-weight:800;font-family:var(--font-display);margin-bottom:4px" id="profileModalMatches">0</div>
+          <div style="font-size:12px;color:var(--text-muted);font-weight:600">Matches</div>
+        </div>
+        <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:24px;font-weight:800;font-family:var(--font-display);margin-bottom:4px" id="profileModalCars">0</div>
+          <div style="font-size:12px;color:var(--text-muted);font-weight:600">Cars</div>
+        </div>
+        <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:24px;font-weight:800;font-family:var(--font-display);margin-bottom:4px" id="profileModalViews">0</div>
+          <div style="font-size:12px;color:var(--text-muted);font-weight:600">Views</div>
+        </div>
+      </div>
+      
+      <!-- Garage -->
+      <div style="font-size:13px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:16px">
+        Garage
+      </div>
+      <div id="profileModalGarage" style="display:grid;grid-template-columns:1fr;gap:12px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ CONFIG ═══
+const API = 'https://web-production-4615d.up.railway.app/api';
+let currentUser = null;
+let inventory = [];
+
+// ═══ API HELPERS ═══
+async function apiCall(endpoint, options = {}) {
+  const url = API + endpoint;
+  const token = localStorage.getItem('gt_dealer_token');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(url, {
+    ...options,
+    headers
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(error.detail || 'Request failed');
+  }
+  
+  return response.json();
+}
+
+// ═══ AUTH ═══
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  
+  if (!username || !password) {
+    showError('Please fill in all fields');
+    return;
+  }
+  
+  const btn = document.getElementById('loginBtn');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  
+  try {
+    const data = await apiCall('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    
+    localStorage.setItem('gt_dealer_token', data.token);
+    currentUser = { id: data.user_id, username: data.username };
+    
+    showScreen('dashboard');
+    loadDashboard();
+  } catch (e) {
+    showError(e.message || 'Login failed');
+  } finally {
+    btn.textContent = 'Sign In';
+    btn.disabled = false;
+  }
+});
+
+function showError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function signOut() {
+  localStorage.removeItem('gt_dealer_token');
+  currentUser = null;
+  showScreen('auth');
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  
+  // Load data for specific screens
+  if (name === 'marketplace') {
+    loadMarketplace();
+  } else if (name === 'matches') {
+    loadMatchesData();
+  } else if (name === 'messages') {
+    loadMessages();
+  } else if (name === 'edit-profile') {
+    loadEditProfile();
+  }
+}
+
+// ═══ DASHBOARD ═══
+async function loadDashboard() {
+  const usernames = ['userName', 'userName2', 'userName3', 'userName4', 'userName5'];
+  const avatars = ['userAvatar', 'userAvatar2', 'userAvatar3', 'userAvatar4', 'userAvatar5'];
+  
+  usernames.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = currentUser.username;
+  });
+  
+  avatars.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = currentUser.username[0].toUpperCase();
+  });
+  
+  await loadStats();
+  await loadInventory();
+}
+
+function toggleUserMenu() {
+  const dropdown = document.getElementById('userDropdown');
+  dropdown.classList.toggle('show');
+}
+
+function closeUserMenu() {
+  document.getElementById('userDropdown').classList.remove('show');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const dropdown = document.getElementById('userDropdown');
+  const userMenu = document.querySelector('.user-menu');
+  if (!userMenu.contains(e.target) && !dropdown.contains(e.target)) {
+    dropdown.classList.remove('show');
+  }
+});
+
+async function loadStats() {
+  try {
+    const stats = await apiCall('/stats');
+    document.getElementById('statCars').textContent = stats.cars || 0;
+    document.getElementById('statViews').textContent = stats.total_views || 0;
+    document.getElementById('statLikes').textContent = stats.likes_received || 0;
+    document.getElementById('statMatches').textContent = stats.matches || 0;
+  } catch (e) {
+    console.error('Failed to load stats:', e);
+  }
+}
+
+async function loadInventory() {
+  try {
+    const data = await apiCall('/cars/my-garage');
+    inventory = data.cars || [];
+    renderInventory();
+  } catch (e) {
+    console.error('Failed to load inventory:', e);
+  }
+}
+
+function renderInventory() {
+  const container = document.getElementById('inventoryContainer');
+  
+  if (inventory.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🚗</div>
+        <div class="empty-title">No inventory yet</div>
+        <div class="empty-text">Upload a CSV or add your first car to get started</div>
+        <button class="btn btn-primary" onclick="showUploadModal()">Upload CSV</button>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Vehicle</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Views</th>
+            <th>Likes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${inventory.map(car => `
+            <tr>
+              <td>
+                <div class="car-cell">
+                  ${car.photos && car.photos.length > 0 
+                    ? `<img src="${car.photos[0]}" class="car-thumb" alt="${car.make} ${car.model}">`
+                    : `<div class="car-thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px">${car.emoji || '🚗'}</div>`
+                  }
+                  <div class="car-info">
+                    <div class="car-name">${car.year} ${car.make} ${car.model}</div>
+                    <div class="car-details">${car.mileage.toLocaleString()} mi · ${car.condition}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="metric">$${car.price.toLocaleString()}</td>
+              <td>
+                <span class="badge badge-active">Active</span>
+                ${car.boost_expires_at && new Date(car.boost_expires_at) > new Date() 
+                  ? '<span class="badge badge-boosted" style="margin-left:4px">Boosted</span>' 
+                  : ''}
+              </td>
+              <td class="metric">${car.view_count || 0}</td>
+              <td class="metric">—</td>
+              <td>
+                <div class="actions">
+                  <button class="icon-btn" title="Edit" onclick="editCar(${car.id})">✏️</button>
+                  <button class="icon-btn" title="Boost">🚀</button>
+                  <button class="icon-btn" title="Delete" onclick="deleteCar(${car.id})">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+let editingCarId = null;
+
+function editCar(carId) {
+  const car = inventory.find(c => c.id === carId);
+  if (!car) return;
+  
+  editingCarId = carId;
+  
+  document.getElementById('editCarMake').value = car.make;
+  document.getElementById('editCarModel').value = car.model;
+  document.getElementById('editCarYear').value = car.year;
+  document.getElementById('editCarMileage').value = car.mileage;
+  document.getElementById('editCarPrice').value = car.price;
+  document.getElementById('editCarCondition').value = car.condition;
+  document.getElementById('editCarListingType').value = car.listing_type;
+  document.getElementById('editCarDescription').value = car.description || '';
+  
+  document.getElementById('editCarModal').classList.add('active');
+}
+
+function closeEditCarModal() {
+  document.getElementById('editCarModal').classList.remove('active');
+  editingCarId = null;
+}
+
+async function saveCarEdit() {
+  if (!editingCarId) return;
+  
+  const updates = {
+    make: document.getElementById('editCarMake').value.trim(),
+    model: document.getElementById('editCarModel').value.trim(),
+    year: parseInt(document.getElementById('editCarYear').value),
+    mileage: parseInt(document.getElementById('editCarMileage').value),
+    price: parseInt(document.getElementById('editCarPrice').value),
+    condition: document.getElementById('editCarCondition').value,
+    listing_type: document.getElementById('editCarListingType').value,
+    description: document.getElementById('editCarDescription').value.trim()
+  };
+  
+  try {
+    await apiCall(`/cars/${editingCarId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    
+    closeEditCarModal();
+    await loadInventory();
+    alert('✅ Car updated!');
+  } catch (e) {
+    alert('Failed to update car: ' + e.message);
+  }
+}
+
+async function deleteCar(carId) {
+  if (!confirm('Are you sure you want to delete this listing?')) return;
+  
+  try {
+    await apiCall(`/cars/${carId}`, { method: 'DELETE' });
+    await loadInventory();
+    await loadStats();
+  } catch (e) {
+    alert('Failed to delete car: ' + e.message);
+  }
+}
+
+// ═══ CSV UPLOAD ═══
+function showUploadModal() {
+  document.getElementById('uploadModal').classList.add('active');
+}
+
+function closeUploadModal() {
+  document.getElementById('uploadModal').classList.remove('active');
+  document.getElementById('uploadPreview').style.display = 'none';
+  document.getElementById('csvFileInput').value = '';
+}
+
+function showAddCarModal() {
+  alert('Single car add modal coming soon!');
+}
+
+// File input handler
+document.getElementById('csvFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    parseCSV(file);
+  }
+});
+
+// Drag and drop
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) {
+    parseCSV(file);
+  } else {
+    alert('Please upload a CSV file');
+  }
+});
+
+function parseCSV(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const lines = text.split('\n').filter(l => l.trim());
+    
+    if (lines.length < 2) {
+      alert('CSV file is empty or invalid');
+      return;
+    }
+    
+    // Simple CSV parsing (assumes no commas in values)
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1, 6).map(line => {
+      const values = line.split(',').map(v => v.trim());
+      return headers.reduce((obj, header, i) => {
+        obj[header] = values[i];
+        return obj;
+      }, {});
+    });
+    
+    showPreview(headers, rows, lines.length - 1);
+  };
+  reader.readAsText(file);
+}
+
+function showPreview(headers, rows, totalRows) {
+  const preview = document.getElementById('uploadPreview');
+  const table = document.getElementById('previewTable');
+  
+  table.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <table style="font-size:13px">
+        <thead>
+          <tr>${headers.map(h => `<th style="padding:12px">${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>${headers.map(h => `<td style="padding:12px">${row[h] || '—'}</td>`).join('')}</tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="padding:12px;background:var(--bg);border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
+        Showing first 5 of ${totalRows} rows
+      </div>
+    </div>
+  `;
+  
+  preview.style.display = 'block';
+}
+
+function confirmUpload() {
+  alert('CSV upload coming soon! Backend integration pending.');
+  closeUploadModal();
+}
+
+function downloadTemplate() {
+  const csv = `Make,Model,Year,Price,Mileage,Condition,Description
+Ford,Mustang GT,2023,45000,12000,Excellent,5.0L V8 manual transmission
+Honda,Civic EX,2022,28000,8000,Excellent,Low miles one owner
+Toyota,Camry SE,2021,26000,25000,Good,Clean title well maintained`;
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'geartrade-inventory-template.csv';
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+// ═══ MARKETPLACE ═══
+let marketplaceCars = [];
+let distanceFilter = 100;
+let showRejected = false;
+
+async function loadMarketplace() {
+  try {
+    let url = `/cars/marketplace?max_distance=${distanceFilter || ''}`;
+    if (showRejected) {
+      url += '&include_rejected=true';
+    }
+    const data = await apiCall(url);
+    marketplaceCars = data.cars || [];
+    renderMarketplace();
+  } catch (e) {
+    console.error('Failed to load marketplace:', e);
+  }
+}
+
+function updateDistanceFilter(value) {
+  distanceFilter = value ? parseInt(value) : null;
+  loadMarketplace();
+}
+
+function toggleShowRejected(checked) {
+  showRejected = checked;
+  loadMarketplace();
+}
+
+function renderMarketplace() {
+  const container = document.getElementById('marketplaceGrid');
+  
+  if (marketplaceCars.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-icon">🏪</div>
+        <div class="empty-title">No cars available</div>
+        <div class="empty-text">Try adjusting your distance filter or check back later</div>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = marketplaceCars.map(car => {
+    const photo = (car.photos && car.photos.length) ? car.photos[0] : null;
+    return `
+      <div class="car-card" onclick="showCarDetail(${car.id})">
+        <div style="position:relative">
+          ${photo 
+            ? `<img src="${photo}" class="car-card-image" alt="${car.make} ${car.model}">`
+            : `<div class="car-card-image">${car.emoji || '🚗'}</div>`
+          }
+          ${car.distance_miles ? `<div class="distance-badge">${car.distance_miles} mi away</div>` : ''}
+        </div>
+        <div class="car-card-content">
+          <div class="car-card-year">${car.year} · ${car.make}</div>
+          <div class="car-card-name">${car.model}</div>
+          <div class="car-card-details">
+            <span>${car.mileage.toLocaleString()} mi</span>
+            <span>·</span>
+            <span>${car.condition}</span>
+          </div>
+          <div class="car-card-price">$${car.price.toLocaleString()}</div>
+          <div class="car-card-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost" onclick="passCar(${car.id})">Pass</button>
+            <button class="btn btn-primary" onclick="likeCar(${car.id})">Like</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function likeCar(carId) {
+  try {
+    const result = await apiCall('/swipe', {
+      method: 'POST',
+      body: JSON.stringify({ car_id: carId, action: 'like' })
+    });
+    
+    if (result.match) {
+      alert(`🎉 It's a match with ${result.matched_user}!`);
+      await loadMatchesData(); // Refresh matches
+    }
+    
+    // Remove from marketplace
+    marketplaceCars = marketplaceCars.filter(c => c.id !== carId);
+    renderMarketplace();
+  } catch (e) {
+    alert('Failed to like car: ' + e.message);
+  }
+}
+
+async function passCar(carId) {
+  try {
+    await apiCall('/swipe', {
+      method: 'POST',
+      body: JSON.stringify({ car_id: carId, action: 'nope' })
+    });
+    
+    // Remove from marketplace
+    marketplaceCars = marketplaceCars.filter(c => c.id !== carId);
+    renderMarketplace();
+  } catch (e) {
+    alert('Failed to pass car: ' + e.message);
+  }
+}
+
+// ═══ MATCHES ═══
+let matchesData = [];
+
+async function loadMatchesData() {
+  try {
+    const data = await apiCall('/matches');
+    matchesData = data.matches || [];
+    renderMatchesGrid();
+  } catch (e) {
+    console.error('Failed to load matches:', e);
+  }
+}
+
+function renderMatchesGrid() {
+  const container = document.getElementById('matchesGrid');
+  
+  if (matchesData.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-icon">🤝</div>
+        <div class="empty-title">No matches yet</div>
+        <div class="empty-text">Keep liking cars to find matches</div>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = matchesData.map(m => `
+    <div class="match-card" onclick="showScreen('messages'); setTimeout(() => openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}'), 100)">
+      <div class="match-avatar">${m.matched_username[0].toUpperCase()}</div>
+      <div class="match-info">
+        <div class="match-name">${m.matched_username}</div>
+        <div class="match-car">${m.their_car}</div>
+        <div class="match-time">Matched ${formatDate(m.matched_at)}</div>
+      </div>
+      ${m.unread_count > 0 ? `<div class="conversation-unread">${m.unread_count}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ═══ MESSAGES ═══
+let matches = [];
+let activeChat = null;
+
+async function loadMessages() {
+  try {
+    const data = await apiCall('/matches');
+    matches = data.matches || [];
+    renderConversations();
+  } catch (e) {
+    console.error('Failed to load matches:', e);
+  }
+}
+
+function renderConversations() {
+  const container = document.getElementById('conversationsList');
+  
+  if (matches.length === 0) {
+    container.innerHTML = `
+      <div style="padding:40px 20px;text-align:center;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:12px">💬</div>
+        <div style="font-size:14px">No conversations yet</div>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = matches.map(m => `
+    <div class="conversation-item ${activeChat && activeChat.matched_user_id === m.matched_user_id ? 'active' : ''}" 
+         onclick="openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}')">
+      <div class="conversation-header">
+        <div class="conversation-name">${m.matched_username}</div>
+        <div class="conversation-time">${formatDate(m.matched_at)}</div>
+      </div>
+      <div class="conversation-preview">
+        Interested in ${m.their_car}
+        ${m.unread_count > 0 ? `<span class="conversation-unread">${m.unread_count}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openChat(userId, username, car) {
+  activeChat = { matched_user_id: userId, username, car };
+  renderConversations(); // Update active state
+  
+  try {
+    const data = await apiCall(`/messages/${userId}`);
+    const messages = data.messages || [];
+    
+    const chatArea = document.getElementById('chatArea');
+    chatArea.innerHTML = `
+      <div class="chat-header">
+        <div class="chat-user-avatar">${username[0].toUpperCase()}</div>
+        <div class="chat-user-info">
+          <div class="chat-user-name">${username}</div>
+          <div class="chat-user-car">${car}</div>
+        </div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        ${messages.length === 0 
+          ? '<div style="text-align:center;color:var(--text-muted);padding:40px">No messages yet. Say hello! 👋</div>'
+          : messages.map(m => `
+            <div class="message ${m.sender_id === currentUser.id ? 'sent' : 'received'}">
+              ${m.content}
+              <div class="message-time">${formatTime(m.created_at)}</div>
+            </div>
+          `).join('')
+        }
+      </div>
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" id="messageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">↑</button>
+      </div>
+    `;
+    
+    // Scroll to bottom
+    const messagesEl = document.getElementById('chatMessages');
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch (e) {
+    console.error('Failed to load messages:', e);
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if (!text || !activeChat) return;
+  
+  input.value = '';
+  
+  try {
+    await apiCall('/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        receiver_id: activeChat.matched_user_id,
+        content: text
+      })
+    });
+    
+    // Reload chat
+    openChat(activeChat.matched_user_id, activeChat.username, activeChat.car);
+  } catch (e) {
+    console.error('Failed to send message:', e);
+    alert('Failed to send message');
+  }
+}
+
+// ═══ EDIT PROFILE ═══
+async function loadEditProfile() {
+  try {
+    const data = await apiCall('/auth/me');
+    document.getElementById('editUsername').value = data.username || '';
+    document.getElementById('editEmail').value = data.email || '';
+    document.getElementById('editLocation').value = data.location || '';
+    document.getElementById('editBio').value = data.bio || '';
+  } catch (e) {
+    console.error('Failed to load profile:', e);
+  }
+}
+
+async function saveProfile() {
+  const location = document.getElementById('editLocation').value.trim();
+  const bio = document.getElementById('editBio').value.trim();
+  
+  try {
+    // Geocode location if provided
+    let latitude = null, longitude = null;
+    if (location) {
+      const coords = await geocodeLocation(location);
+      latitude = coords.latitude;
+      longitude = coords.longitude;
+    }
+    
+    await apiCall('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ location, latitude, longitude, bio })
+    });
+    
+    alert('✅ Profile updated!');
+    showScreen('dashboard');
+  } catch (e) {
+    alert('Failed to update profile: ' + e.message);
+  }
+}
+
+async function geocodeLocation(locationString) {
+  if (!locationString) return { latitude: null, longitude: null };
+  
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationString)}&limit=1`, {
+      headers: { 'User-Agent': 'GearTrade/1.0' }
+    });
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon)
+      };
+    }
+  } catch (e) {
+    console.warn('Geocoding failed:', e);
+  }
+  
+  return { latitude: null, longitude: null };
+}
+
+// ═══ CAR DETAIL MODAL ═══
+let detailCar = null;
+let detailCarId = null;
+
+function showCarDetail(carId) {
+  const car = marketplaceCars.find(c => c.id === carId);
+  if (!car) return;
+  
+  detailCar = car;
+  detailCarId = carId;
+  
+  console.log('showCarDetail - detailCar set to:', detailCar);
+  
+  // Update modal content
+  document.getElementById('detailTitle').textContent = `${car.year} ${car.make} ${car.model}`;
+  document.getElementById('detailYearMake').textContent = `${car.year} · ${car.make}`;
+  document.getElementById('detailName').textContent = car.model;
+  document.getElementById('detailPrice').textContent = '$' + car.price.toLocaleString();
+  document.getElementById('detailMileage').textContent = car.mileage.toLocaleString() + ' mi';
+  document.getElementById('detailCondition').textContent = car.condition;
+  document.getElementById('detailListingType').textContent = 
+    car.listing_type === 'both' ? 'Trade or Sell' :
+    car.listing_type === 'trade' ? 'Trade Only' : 'Sale Only';
+  document.getElementById('detailDescription').textContent = car.description || 'No description provided.';
+  
+  // Distance
+  if (car.distance_miles) {
+    document.getElementById('detailDistanceContainer').style.display = 'block';
+    document.getElementById('detailDistance').textContent = car.distance_miles + ' mi away';
+  } else {
+    document.getElementById('detailDistanceContainer').style.display = 'none';
+  }
+  
+  // Owner
+  const ownerCard = document.getElementById('ownerCard');
+  ownerCard.dataset.username = car.owner_username || '';
+  document.getElementById('detailOwnerAvatar').textContent = (car.owner_username || 'U')[0].toUpperCase();
+  document.getElementById('detailOwnerName').textContent = car.owner_username || 'Unknown';
+  document.getElementById('detailOwnerLocation').textContent = car.owner_location || '';
+  
+  // Photos
+  const photosContainer = document.getElementById('detailPhotos');
+  if (car.photos && car.photos.length > 0) {
+    photosContainer.innerHTML = `
+      <img src="${car.photos[0]}" style="width:100%;height:400px;object-fit:cover" alt="${car.make} ${car.model}">
+      ${car.photos.length > 1 ? `
+        <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px">
+          ${car.photos.map((_, i) => `
+            <div style="width:8px;height:8px;border-radius:50%;background:${i === 0 ? 'white' : 'rgba(255,255,255,0.5)'}"></div>
+          `).join('')}
+        </div>
+      ` : ''}
+    `;
+  } else {
+    photosContainer.innerHTML = `
+      <div style="width:100%;height:400px;display:flex;align-items:center;justify-content:center;font-size:96px;background:var(--surface2)">
+        ${car.emoji || '🚗'}
+      </div>
+    `;
+  }
+  
+  document.getElementById('carDetailModal').classList.add('active');
+}
+
+function closeCarDetail() {
+  document.getElementById('carDetailModal').classList.remove('active');
+  detailCar = null;
+  detailCarId = null;
+}
+
+function viewOwnerProfile() {
+  console.log('viewOwnerProfile called, detailCar:', detailCar);
+  if (!detailCar) {
+    console.error('No detailCar found!');
+    return;
+  }
+  console.log('Opening profile for:', detailCar.owner_username);
+  closeCarDetail();
+  showUserProfile(detailCar.owner_username);
+}
+
+function viewOwnerProfileByUsername(username) {
+  console.log('viewOwnerProfileByUsername called with:', username);
+  if (!username) {
+    console.error('No username provided!');
+    return;
+  }
+  closeCarDetail();
+  showUserProfile(username);
+}
+
+// ═══ USER PROFILE MODAL ═══
+async function showUserProfile(username) {
+  document.getElementById('userProfileModal').classList.add('active');
+  document.getElementById('profileModalTitle').textContent = '@' + username;
+  document.getElementById('profileModalAvatar').textContent = username[0].toUpperCase();
+  document.getElementById('profileModalName').textContent = username;
+  document.getElementById('profileModalLocation').textContent = '';
+  document.getElementById('profileModalBio').textContent = '';
+  document.getElementById('profileModalMatches').textContent = '–';
+  document.getElementById('profileModalCars').textContent = '–';
+  document.getElementById('profileModalViews').textContent = '–';
+  document.getElementById('profileModalGarage').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>';
+  
+  try {
+    const data = await apiCall(`/users/${username}`);
+    
+    // Update profile info
+    document.getElementById('profileModalName').textContent = data.user.username;
+    document.getElementById('profileModalLocation').textContent = data.user.location || '';
+    document.getElementById('profileModalBio').textContent = data.user.bio || 'No bio yet.';
+    
+    // Update stats
+    document.getElementById('profileModalMatches').textContent = data.stats.matches;
+    document.getElementById('profileModalCars').textContent = data.stats.cars;
+    document.getElementById('profileModalViews').textContent = data.stats.total_views;
+    
+    // Render garage
+    const garage = document.getElementById('profileModalGarage');
+    
+    if (!data.cars || data.cars.length === 0) {
+      garage.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">No cars listed yet.</div>';
+      return;
+    }
+    
+    garage.innerHTML = data.cars.map(car => {
+      const photo = (car.photos && car.photos.length) ? car.photos[0] : null;
+      const priceStr = '$' + (car.price || 0).toLocaleString();
+      const mileStr = (car.mileage || 0).toLocaleString() + ' mi';
+      
+      return `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;gap:14px;padding:12px;transition:all 0.2s;cursor:pointer" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--surface2)'">
+          <div style="width:100px;height:100px;border-radius:10px;background:var(--bg);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:48px">
+            ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : (car.emoji || '🚗')}
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px">
+            <div style="font-size:13px;color:var(--text-muted);font-weight:500">${car.year} · ${car.make}</div>
+            <div style="font-family:var(--font-display);font-size:20px;line-height:1.1;margin-bottom:4px">${car.model}</div>
+            <div style="font-size:16px;font-weight:700">${priceStr} <span style="font-size:13px;color:var(--text-muted);font-weight:400">· ${mileStr}</span></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    document.getElementById('profileModalGarage').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Failed to load profile.</div>';
+  }
+}
+
+function closeUserProfile() {
+  document.getElementById('userProfileModal').classList.remove('active');
+}
+
+// ═══ UTILS ═══
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const diff = (Date.now() - d) / 1000;
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+// ═══ INIT ═══
+(function init() {
+  const token = localStorage.getItem('gt_dealer_token');
+  if (token) {
+    // Could validate token here
+    showScreen('dashboard');
+    // Load user from token or API call
+    currentUser = { username: 'Dealer' }; // Placeholder
+    loadDashboard();
+  }
+})();
+</script>
+
+</body>
+</html>

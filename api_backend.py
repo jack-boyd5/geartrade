@@ -407,7 +407,8 @@ async def update_me(updates: UserUpdate, user_id: int = Depends(get_current_user
 @app.get("/api/cars/marketplace")
 async def get_marketplace(
     user_id: int = Depends(get_current_user),
-    max_distance: Optional[int] = None
+    max_distance: Optional[int] = None,
+    include_rejected: bool = False
 ):
     """Get cars for swiping (sorted by boost, then distance)"""
     db = get_db()
@@ -419,8 +420,13 @@ async def get_marketplace(
     user_lat = user_location['latitude'] if user_location else None
     user_lng = user_location['longitude'] if user_location else None
     
+    # Build exclusion clause
+    exclusion_clause = ""
+    if not include_rejected:
+        exclusion_clause = "AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = %s)"
+    
     # Get cars
-    cursor.execute("""
+    query = f"""
         SELECT 
             c.id, c.make, c.model, c.year, c.price, c.mileage,
             c.condition, c.listing_type, c.description, c.emoji, c.view_count,
@@ -436,12 +442,15 @@ async def get_marketplace(
         WHERE c.is_active = TRUE
         AND c.owner_id != %s
         AND c.id NOT IN (SELECT car_id FROM likes WHERE user_id = %s)
-        AND c.id NOT IN (SELECT car_id FROM dismissals WHERE user_id = %s)
+        {exclusion_clause}
         ORDER BY 
             CASE WHEN c.boost_expires_at > NOW() THEN 0 ELSE 1 END,
             c.created_at DESC
         LIMIT 100
-    """, (user_id, user_id, user_id))
+    """
+    
+    params = (user_id, user_id, user_id) if not include_rejected else (user_id, user_id)
+    cursor.execute(query, params)
     
     cars = [dict(row) for row in cursor.fetchall()]
     
