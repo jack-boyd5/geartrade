@@ -1082,7 +1082,7 @@ input::placeholder { color: var(--muted); }
     </div>
     <div class="swipe-actions" id="swipeActions">
       <button class="swipe-btn btn-nope" onclick="doSwipe('nope')" title="Pass">✕</button>
-      <button class="swipe-btn btn-like" onclick="doSwipe('like')" title="Like">♥</button>
+      <button class="swipe-btn btn-like" onclick="handleLike()" title="Like">♥</button>
     </div>
   </div>
 
@@ -1264,6 +1264,23 @@ input::placeholder { color: var(--muted); }
       <div class="match-actions">
         <button class="btn btn-primary" id="toastMessageBtn">💬 Send a Message</button>
         <button class="btn btn-ghost" onclick="closeMatchToast()">Keep Swiping</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ INTENT SELECTION MODAL ═══ -->
+  <div class="match-toast" id="intentModal">
+    <div class="match-card">
+      <div class="match-headline" style="font-size:22px;margin-bottom:12px">How do you want this car?</div>
+      <div class="match-sub" style="margin-bottom:24px;font-size:15px" id="intentCarName">2023 Ford Mustang</div>
+      <div class="match-actions" style="gap:12px">
+        <button class="btn btn-primary" onclick="confirmIntent('trade')" style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <span style="font-size:20px">🔄</span> Trade for it
+        </button>
+        <button class="btn btn-primary" onclick="confirmIntent('buy')" style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <span style="font-size:20px">💰</span> Buy it
+        </button>
+        <button class="btn btn-ghost" onclick="closeIntentModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -1710,7 +1727,7 @@ function signOut() {
 // NAVIGATION
 // ─────────────────────────────────────────────
 function showScreen(name) {
-  if (name !== 'chat') prevScreen = name;
+  if (name !== 'chat' && name !== 'user-profile') prevScreen = name;
   const screens = ['swipe', 'matches', 'profile'];
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1947,9 +1964,7 @@ function openDetail(car, photos) {
   // Action buttons
   document.getElementById('detailLikeBtn').onclick = () => {
     closeDetail();
-    const topCard = document.querySelector('.car-card:not(.is-second):not(.is-third)');
-    if (topCard) animateOut(topCard, 'right', () => doSwipe('like'));
-    else doSwipe('like');
+    handleLike();
   };
   document.getElementById('detailNopeBtn').onclick = () => {
     closeDetail();
@@ -2013,7 +2028,7 @@ document.addEventListener('mouseup', () => {
     openDetail(_dragCar, _dragPhotos);
     return;
   }
-  if      (_curX >  90) animateOut(_dragCard, 'right', () => doSwipe('like'));
+  if      (_curX >  90) animateOut(_dragCard, 'right', () => handleLike());
   else if (_curX < -90) animateOut(_dragCard, 'left',  () => doSwipe('nope'));
   else {
     _dragCard.style.transform = '';
@@ -2048,7 +2063,7 @@ document.addEventListener('touchend', () => {
     openDetail(_dragCar, _dragPhotos);
     return;
   }
-  if      (_curX >  90) animateOut(_dragCard, 'right', () => doSwipe('like'));
+  if      (_curX >  90) animateOut(_dragCard, 'right', () => handleLike());
   else if (_curX < -90) animateOut(_dragCard, 'left',  () => doSwipe('nope'));
   else {
     _dragCard.style.transform = '';
@@ -2086,7 +2101,7 @@ function animateOut(card, dir, callback) {
 }
 
 
-async function doSwipe(action) {
+async function doSwipe(action, intent = 'buy') {
   const car = deck[deckIdx];
   if (!car) return;
 
@@ -2098,7 +2113,7 @@ async function doSwipe(action) {
       // 25% random match in demo
       result = { match: action === 'like' && Math.random() > 0.75, matched_user: car.owner_username };
     } else {
-      result = await apiCall('/swipe', { method: 'POST', body: JSON.stringify({ car_id: car.id, action }) });
+      result = await apiCall('/swipe', { method: 'POST', body: JSON.stringify({ car_id: car.id, action, intent }) });
     }
 
     if (result.match) {
@@ -2127,6 +2142,89 @@ function showMatchToast(car, matchedUser) {
 
 function closeMatchToast() {
   document.getElementById('matchToast').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────
+// INTENT SELECTION MODAL
+// ─────────────────────────────────────────────
+let pendingSwipe = null;
+
+function showIntentModal(car) {
+  console.log('showIntentModal called with car:', car);
+  pendingSwipe = car;
+  document.getElementById('intentCarName').textContent = `${car.year} ${car.make} ${car.model}`;
+  const modal = document.getElementById('intentModal');
+  console.log('Intent modal element:', modal);
+  modal.style.display = 'flex';
+  console.log('Modal display set to flex');
+}
+
+function closeIntentModal() {
+  document.getElementById('intentModal').classList.remove('show');
+  pendingSwipe = null;
+  // Don't modify deck - user just cancelled the like
+}
+
+async function confirmIntent(intent) {
+  document.getElementById('intentModal').classList.remove('show');
+  
+  if (!pendingSwipe) {
+    pendingSwipe = null;
+    return;
+  }
+  
+  const car = pendingSwipe;
+  pendingSwipe = null;
+  
+  // Send the API call directly without calling doSwipe (deck already incremented)
+  try {
+    if (!isDemo) {
+      const result = await apiCall('/swipe', { 
+        method: 'POST', 
+        body: JSON.stringify({ car_id: car.id, action: 'like', intent }) 
+      });
+      
+      if (result.match) {
+        showMatchToast(car, result.matched_user);
+      }
+    }
+  } catch (e) {
+    console.error('Swipe error:', e);
+  }
+  
+  // Render next card
+  renderDeck();
+}
+
+function handleLike() {
+  console.log('=== handleLike called ===');
+  console.log('deckIdx:', deckIdx);
+  console.log('Looking for car at current index:', deckIdx);
+  
+  const car = deck[deckIdx]; // Look at CURRENT card, not previous
+  console.log('Car found:', car);
+  
+  if (!car) {
+    console.log('No car found, calling doSwipe as fallback');
+    // Fallback to just completing the swipe
+    doSwipe('like', 'buy');
+    return;
+  }
+  
+  // Always show intent modal for every like
+  pendingSwipe = car;
+  console.log('Set pendingSwipe to:', pendingSwipe);
+  
+  const carName = `${car.year} ${car.make} ${car.model}`;
+  console.log('Setting modal car name to:', carName);
+  document.getElementById('intentCarName').textContent = carName;
+  
+  const modal = document.getElementById('intentModal');
+  console.log('Modal element:', modal);
+  console.log('Adding show class...');
+  modal.classList.add('show');
+  console.log('Modal classes after add:', modal.classList);
+  console.log('Modal should now be visible!');
 }
 
 // ─────────────────────────────────────────────
@@ -2163,19 +2261,29 @@ async function loadMatches() {
     return;
   }
 
-  list.innerHTML = matchesList.map(m => `
+  list.innerHTML = matchesList.map(m => {
+    // Build intent text
+    let intentText = '';
+    if (m.my_intent) {
+      const intentIcon = m.my_intent === 'trade' ? '🔄' : '💰';
+      const intentLabel = m.my_intent === 'trade' ? 'Trade' : 'Buy';
+      intentText = `<span style="font-size:11px;color:var(--muted);margin-left:6px">${intentIcon} Want to ${intentLabel}</span>`;
+    }
+    
+    return `
     <div class="match-row ${m.unread_count > 0 ? 'unread' : ''}" onclick="openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}')">
       <div class="match-avi">${m.their_emoji || '🚗'}</div>
       <div class="match-info">
         <div class="match-name" onclick="event.stopPropagation(); openUserProfile('${m.matched_username}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(245,242,236,0.3)">${m.matched_username}</div>
-        <div class="match-car">${m.their_car}</div>
+        <div class="match-car">${m.their_car}${intentText}</div>
       </div>
       <div class="match-meta">
         <div class="match-time">${formatDate(m.matched_at)}</div>
         ${m.unread_count > 0 ? '<div class="match-unread-dot"></div>' : ''}
       </div>
     </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // ─────────────────────────────────────────────
@@ -2314,16 +2422,34 @@ async function loadProfile() {
 // USER PROFILE VIEWING
 // ─────────────────────────────────────────────
 async function openUserProfile(username) {
-  // Capture previous screen BEFORE closing detail
-  prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+  console.log('=== openUserProfile called for:', username);
+  
+  // Capture previous screen ONLY if we're not already on a profile
+  const currentScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+  console.log('Current active screen:', currentScreen);
+  
+  if (currentScreen !== 'user-profile') {
+    prevScreen = currentScreen;
+    console.log('Set prevScreen to:', prevScreen);
+  } else {
+    console.log('Already on user-profile, keeping prevScreen as:', prevScreen);
+  }
   
   // Close detail page if open
   const detailScreen = document.getElementById('screen-detail');
   if (detailScreen.classList.contains('open')) {
+    console.log('Detail screen is open, closing it');
     closeDetail();
     // If we just closed detail, the actual previous screen is what was under it
-    prevScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+    const underlyingScreen = document.querySelector('.screen.active').id.replace('screen-', '');
+    console.log('Underlying screen after closing detail:', underlyingScreen);
+    if (underlyingScreen !== 'user-profile') {
+      prevScreen = underlyingScreen;
+      console.log('Updated prevScreen to:', prevScreen);
+    }
   }
+  
+  console.log('Final prevScreen before showing profile:', prevScreen);
   
   document.getElementById('profileUsername').textContent = '@' + username;
   document.getElementById('profileAvatar').textContent = username[0].toUpperCase();
@@ -2392,7 +2518,29 @@ async function openUserProfile(username) {
 }
 
 function closeUserProfile() {
-  showScreen(prevScreen);
+  console.log('Closing profile, going back to:', prevScreen);
+  
+  // Hide user profile screen
+  document.getElementById('screen-user-profile').classList.remove('active');
+  
+  // Show the previous screen
+  const prevScreenEl = document.getElementById('screen-' + prevScreen);
+  console.log('Previous screen element:', prevScreenEl);
+  
+  if (prevScreenEl) {
+    prevScreenEl.classList.add('active');
+    
+    // Update nav if it's a main screen
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const navBtn = document.getElementById('nav-' + prevScreen);
+    if (navBtn) navBtn.classList.add('active');
+  } else {
+    console.error('Could not find screen:', 'screen-' + prevScreen);
+    // Fallback to swipe
+    document.getElementById('screen-swipe').classList.add('active');
+    const navBtn = document.getElementById('nav-swipe');
+    if (navBtn) navBtn.classList.add('active');
+  }
 }
 
 // ─────────────────────────────────────────────
