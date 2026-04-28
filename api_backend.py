@@ -209,6 +209,7 @@ class CarUpdate(BaseModel):
 class SwipeAction(BaseModel):
     car_id: int
     action: str
+    intent: Optional[str] = 'buy'  # 'trade' or 'buy', defaults to 'buy'
 
 class MessageSend(BaseModel):
     receiver_id: int
@@ -647,12 +648,12 @@ async def swipe(swipe: SwipeAction, user_id: int = Depends(get_current_user)):
     cursor = db.cursor()
     
     if swipe.action == 'like':
-        # Add like
+        # Add like with intent
         cursor.execute("""
-            INSERT INTO likes (user_id, car_id)
-            VALUES (%s, %s)
-            ON CONFLICT DO NOTHING
-        """, (user_id, swipe.car_id))
+            INSERT INTO likes (user_id, car_id, intent)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, car_id) DO UPDATE SET intent = EXCLUDED.intent
+        """, (user_id, swipe.car_id, swipe.intent))
         
         # Check for match
         cursor.execute("""
@@ -734,6 +735,9 @@ async def get_matches(user_id: int = Depends(get_current_user)):
             u.account_type,
             c.make || ' ' || c.model AS their_car,
             c.emoji AS their_emoji,
+            c.listing_type AS their_listing_type,
+            my_like.intent AS my_intent,
+            their_like.intent AS their_intent,
             (SELECT COUNT(*) FROM messages
              WHERE sender_id = base.matched_user_id
                AND receiver_id = %s
@@ -750,8 +754,10 @@ async def get_matches(user_id: int = Depends(get_current_user)):
         ) AS base
         JOIN users u ON u.id = base.matched_user_id
         JOIN cars c ON c.id = base.their_car_id
+        LEFT JOIN likes my_like ON my_like.user_id = %s AND my_like.car_id = base.their_car_id
+        LEFT JOIN likes their_like ON their_like.user_id = base.matched_user_id AND their_like.car_id = base.my_car_id
         ORDER BY base.matched_at DESC
-    """, (user_id, user_id, user_id, user_id, user_id))
+    """, (user_id, user_id, user_id, user_id, user_id, user_id))
     
     matches = [dict(row) for row in cursor.fetchall()]
     
