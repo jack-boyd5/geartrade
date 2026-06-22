@@ -1046,8 +1046,9 @@ textarea.form-input {
 <!-- ═══ DASHBOARD SCREEN ═══ -->
 <div class="screen" id="screen-dashboard">
   <div class="topbar">
-    <div class="logo">Gear<span>Trade</span></div>
+    <div class="logo" onclick="showScreen('dashboard')" style="cursor:pointer">Gear<span>Trade</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">📊 Dashboard</button>
       <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
       <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
       <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
@@ -1140,8 +1141,9 @@ textarea.form-input {
 <!-- ═══ MARKETPLACE SCREEN ═══ -->
 <div class="screen" id="screen-marketplace">
   <div class="topbar">
-    <div class="logo">Gear<span>Trade</span></div>
+    <div class="logo" onclick="showScreen('dashboard')" style="cursor:pointer">Gear<span>Trade</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">📊 Dashboard</button>
       <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
       <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
       <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
@@ -1181,8 +1183,9 @@ textarea.form-input {
 <!-- ═══ MATCHES SCREEN ═══ -->
 <div class="screen" id="screen-matches">
   <div class="topbar">
-    <div class="logo">Gear<span>Trade</span></div>
+    <div class="logo" onclick="showScreen('dashboard')" style="cursor:pointer">Gear<span>Trade</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">📊 Dashboard</button>
       <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
       <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
       <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
@@ -1209,9 +1212,12 @@ textarea.form-input {
 <!-- ═══ MESSAGES SCREEN ═══ -->
 <div class="screen" id="screen-messages">
   <div class="topbar">
-    <div class="logo">Gear<span>Trade</span></div>
+    <div class="logo" onclick="showScreen('dashboard')" style="cursor:pointer">Gear<span>Trade</span></div>
     <div class="topbar-right">
-      <button class="btn btn-ghost" onclick="showScreen('dashboard')">← Dashboard</button>
+      <button class="btn btn-ghost" onclick="showScreen('dashboard')">📊 Dashboard</button>
+      <button class="btn btn-ghost" onclick="showScreen('marketplace')">🏪 Browse</button>
+      <button class="btn btn-ghost" onclick="showScreen('matches')">🤝 Matches</button>
+      <button class="btn btn-ghost" onclick="showScreen('messages')">💬 Messages</button>
       <div class="user-menu" onclick="toggleUserMenu()">
         <div class="user-avatar" id="userAvatar2">D</div>
         <span id="userName2">Dealer</span>
@@ -1251,7 +1257,7 @@ textarea.form-input {
 <!-- ═══ EDIT PROFILE SCREEN ═══ -->
 <div class="screen" id="screen-edit-profile">
   <div class="topbar">
-    <div class="logo">Gear<span>Trade</span></div>
+    <div class="logo" onclick="showScreen('dashboard')" style="cursor:pointer">Gear<span>Trade</span></div>
     <div class="topbar-right">
       <button class="btn btn-ghost" onclick="showScreen('dashboard')">← Dashboard</button>
       <div class="user-menu" onclick="toggleUserMenu()">
@@ -1474,6 +1480,32 @@ textarea.form-input {
         Garage
       </div>
       <div id="profileModalGarage" style="display:grid;grid-template-columns:1fr;gap:12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INTENT SELECTION MODAL ═══ -->
+<div class="modal" id="intentModal">
+  <div class="modal-content" style="max-width:500px">
+    <div class="modal-header">
+      <h3 class="modal-title">How do you want this car?</h3>
+      <button class="modal-close" onclick="closeIntentModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:24px">
+        <div id="intentCarName" style="font-size:18px;font-weight:600;margin-bottom:24px">2023 Ford Mustang</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="btn btn-primary" onclick="confirmIntent('trade')" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px">
+          <span style="font-size:24px">🔄</span>
+          <span>Trade my car for it</span>
+        </button>
+        <button class="btn btn-primary" onclick="confirmIntent('buy')" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px">
+          <span style="font-size:24px">💰</span>
+          <span>Buy it outright</span>
+        </button>
+        <button class="btn btn-ghost" onclick="closeIntentModal()">Cancel</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1881,10 +1913,11 @@ Toyota,Camry SE,2021,26000,25000,Good,Clean title well maintained`;
   window.URL.revokeObjectURL(url);
 }
 
-// ═══ MARKETPLACE ═══
+// ═══ MARKETPLACE ===
 let marketplaceCars = [];
 let distanceFilter = 100;
 let showRejected = false;
+let pendingLikeCar = null;
 
 async function loadMarketplace() {
   try {
@@ -1908,6 +1941,57 @@ function updateDistanceFilter(value) {
 function toggleShowRejected(checked) {
   showRejected = checked;
   loadMarketplace();
+}
+
+function showIntentModal(car) {
+  pendingLikeCar = car;
+  document.getElementById('intentCarName').textContent = `${car.year} ${car.make} ${car.model}`;
+  document.getElementById('intentModal').classList.add('active');
+}
+
+function closeIntentModal() {
+  document.getElementById('intentModal').classList.remove('active');
+  pendingLikeCar = null;
+}
+
+async function confirmIntent(intent) {
+  closeIntentModal();
+  if (!pendingLikeCar) return;
+  
+  const carId = pendingLikeCar.id;
+  pendingLikeCar = null;
+  
+  try {
+    const result = await apiCall('/swipe', {
+      method: 'POST',
+      body: JSON.stringify({ car_id: carId, action: 'like', intent })
+    });
+    
+    if (result.match) {
+      alert(`🎉 It's a match with ${result.matched_user}!`);
+      await loadMatchesData(); // Refresh matches
+    }
+    
+    // Remove from marketplace
+    marketplaceCars = marketplaceCars.filter(c => c.id !== carId);
+    renderMarketplace();
+  } catch (e) {
+    alert('Failed to like car: ' + e.message);
+  }
+}
+
+function likeCar(carId) {
+  const car = marketplaceCars.find(c => c.id === carId);
+  if (!car) return;
+  
+  // If car is listed as "Trade or Sell" or "Trade Only", ask for intent
+  if (car.listing_type === 'both' || car.listing_type === 'trade') {
+    showIntentModal(car);
+  } else {
+    // Sale only - just like it with 'buy' intent
+    confirmIntent('buy');
+    pendingLikeCar = car;
+  }
 }
 
 function renderMarketplace() {
@@ -1954,26 +2038,6 @@ function renderMarketplace() {
   }).join('');
 }
 
-async function likeCar(carId) {
-  try {
-    const result = await apiCall('/swipe', {
-      method: 'POST',
-      body: JSON.stringify({ car_id: carId, action: 'like' })
-    });
-    
-    if (result.match) {
-      alert(`🎉 It's a match with ${result.matched_user}!`);
-      await loadMatchesData(); // Refresh matches
-    }
-    
-    // Remove from marketplace
-    marketplaceCars = marketplaceCars.filter(c => c.id !== carId);
-    renderMarketplace();
-  } catch (e) {
-    alert('Failed to like car: ' + e.message);
-  }
-}
-
 async function passCar(carId) {
   try {
     await apiCall('/swipe', {
@@ -2016,17 +2080,28 @@ function renderMatchesGrid() {
     return;
   }
   
-  container.innerHTML = matchesData.map(m => `
+  container.innerHTML = matchesData.map(m => {
+    // Build intent text
+    let intentText = '';
+    if (m.my_intent) {
+      const intentIcon = m.my_intent === 'trade' ? '🔄' : '💰';
+      const intentLabel = m.my_intent === 'trade' ? 'Trade' : 'Buy';
+      intentText = `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${intentIcon} Want to ${intentLabel}</div>`;
+    }
+    
+    return `
     <div class="match-card" onclick="showScreen('messages'); setTimeout(() => openChat(${m.matched_user_id}, '${m.matched_username}', '${m.their_car}'), 100)">
       <div class="match-avatar">${m.matched_username[0].toUpperCase()}</div>
       <div class="match-info">
         <div class="match-name">${m.matched_username}</div>
         <div class="match-car">${m.their_car}</div>
+        ${intentText}
         <div class="match-time">Matched ${formatDate(m.matched_at)}</div>
       </div>
       ${m.unread_count > 0 ? `<div class="conversation-unread">${m.unread_count}</div>` : ''}
     </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // ═══ MESSAGES ═══

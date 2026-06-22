@@ -5,6 +5,7 @@ Clean architecture with separated concerns
 import os
 import secrets
 import hashlib
+import bcrypt
 from pathlib import Path
 from typing import Optional
 from datetime import datetime, timedelta
@@ -26,9 +27,17 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 app = FastAPI(title="GearTrade API", version="2.0.0")
 
 # CORS
+# Set ALLOWED_ORIGINS in your environment as a comma-separated list, e.g.
+#   ALLOWED_ORIGINS=https://geartrade.app,https://www.geartrade.app
+# During local development the Expo dev server origin is allowed by default.
+_default_origins = "http://localhost:8081,http://localhost:19006"
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -218,8 +227,23 @@ class MessageSend(BaseModel):
 # ============== AUTH HELPERS ==============
 
 def hash_password(password: str) -> str:
-    """Hash password with SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password with bcrypt (secure, salted)"""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify a password against a stored bcrypt hash.
+
+    Falls back to legacy SHA256 for any accounts created before the
+    bcrypt migration, so existing users can still log in. On a successful
+    legacy login you should re-hash and update their stored hash.
+    """
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except (ValueError, TypeError):
+        # Stored hash isn't bcrypt (legacy SHA256 account)
+        legacy = hashlib.sha256(password.encode()).hexdigest()
+        return secrets.compare_digest(legacy, password_hash)
 
 def generate_token() -> str:
     """Generate secure session token"""
@@ -318,8 +342,15 @@ async def login(credentials: UserLogin):
     
     user = cursor.fetchone()
     
-    if not user or user['password_hash'] != hash_password(credentials.password):
+    if not user or not verify_password(credentials.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Transparently upgrade legacy SHA256 hashes to bcrypt on successful login
+    if not user['password_hash'].startswith("$2"):
+        cursor.execute(
+            "UPDATE users SET password_hash = %s WHERE id = %s",
+            (hash_password(credentials.password), user['id'])
+        )
     
     # Create new session
     session_token = generate_token()
